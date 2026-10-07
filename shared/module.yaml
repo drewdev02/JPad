@@ -3,6 +3,8 @@ product:
   platforms: [ jvm ]
 
 dependencies:
+  - //core-engine
+  - //ui-features
   - $compose.runtime
   - $compose.foundation
   - $compose.material3

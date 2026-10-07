@@ -1,0 +1,21 @@
+product:
+  type: kmp/lib
+  platforms: [ jvm ]
+
+dependencies:
+  - //core-engine
+  - $compose.runtime
+  - $compose.foundation
+  - $compose.material3
+  - $compose.ui
+  - $compose.components.resources
+  - $compose.preview
+  - $libs.androidx.lifecycle.viewmodel.compose
+  - $libs.androidx.lifecycle.runtime.compose
+  - $libs.koin.core
+  - $libs.koin.compose
+  - $libs.koin.compose.viewmodel
+
+settings:
+  compose:
+    enabled: true

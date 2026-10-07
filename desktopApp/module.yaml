@@ -1,6 +1,8 @@
 product: jvm/app
 
 dependencies:
+  - //ui-features
+  - //core-engine
   - //shared
   - $compose.desktop.currentOs
   - $compose.preview

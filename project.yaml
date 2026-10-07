@@ -1,3 +1,6 @@
 modules:
+  - core-engine
   - desktopApp
   - shared
+  - ui-features
+  - worker-runtime
