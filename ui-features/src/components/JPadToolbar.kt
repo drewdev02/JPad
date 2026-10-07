@@ -12,8 +12,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import org.andrew.jpad.ui.theme.JPadTheme
 
@@ -98,5 +103,28 @@ fun JPadToolbar(
             text = "Samples",
             style = JPadButtonStyle.GHOST
         )
+    }
+}
+
+@Preview
+@Composable
+private fun JPadToolbarPreview() {
+    JPadTheme {
+        var mode by remember { mutableStateOf(ScriptLanguageMode.JAVA_STATEMENTS) }
+        var isRunning by remember { mutableStateOf(false) }
+
+        Box(
+            modifier = Modifier
+                .background(JPadTheme.colors.backgroundWindow)
+                .padding(12.dp)
+        ) {
+            JPadToolbar(
+                languageMode = mode,
+                onLanguageModeChange = { mode = it },
+                onRunClick = { isRunning = true },
+                onStopClick = { isRunning = false },
+                isRunning = isRunning
+            )
+        }
     }
 }

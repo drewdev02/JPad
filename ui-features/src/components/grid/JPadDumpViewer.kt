@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import org.andrew.jpad.ui.theme.JPadTheme
 
@@ -290,6 +291,55 @@ fun DumpKeyValueView(
                     }
                 }
             }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun JPadDumpViewerPreview() {
+    JPadTheme {
+        Column(
+            modifier = Modifier
+                .background(JPadTheme.colors.backgroundWindow)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            val sampleTable = DumpValue.Table(
+                typeName = "List<User>",
+                columns = listOf("id", "name", "email", "isActive", "score"),
+                rows = listOf(
+                    mapOf(
+                        "id" to DumpValue.Primitive(101),
+                        "name" to DumpValue.Primitive("Ada Lovelace"),
+                        "email" to DumpValue.Primitive("ada@jpad.io"),
+                        "isActive" to DumpValue.Primitive(true),
+                        "score" to DumpValue.Primitive(98.5)
+                    ),
+                    mapOf(
+                        "id" to DumpValue.Primitive(102),
+                        "name" to DumpValue.Primitive("James Gosling"),
+                        "email" to DumpValue.Primitive(null),
+                        "isActive" to DumpValue.Primitive(false),
+                        "score" to DumpValue.Primitive(89.0)
+                    )
+                )
+            )
+
+            val sampleKv = DumpValue.KeyValueList(
+                title = "Configuration (Properties)",
+                entries = listOf(
+                    "java.version" to DumpValue.Primitive("21.0.2"),
+                    "os.name" to DumpValue.Primitive("Mac OS X"),
+                    "jpad.mode" to DumpValue.Primitive("In-Memory JVM")
+                )
+            )
+
+            Text("Dump Table Sample:", style = JPadTheme.typography.uiSmall.copy(color = JPadTheme.colors.textSecondary))
+            JPadDumpViewer(value = sampleTable, modifier = Modifier.fillMaxWidth())
+
+            Text("Dump Key-Value Sample:", style = JPadTheme.typography.uiSmall.copy(color = JPadTheme.colors.textSecondary))
+            JPadDumpViewer(value = sampleKv, modifier = Modifier.fillMaxWidth())
         }
     }
 }

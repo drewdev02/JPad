@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import org.andrew.jpad.ui.theme.JPadTheme
 
@@ -158,6 +159,40 @@ fun <T> JPadDropdown(
                         .fillMaxWidth()
                         .height(28.dp)
                         .background(if (isSelected) colors.backgroundSelected.copy(alpha = 0.3f) else Color.Transparent)
+                )
+            }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun JPadDropdownPreview() {
+    JPadTheme {
+        var selectedLanguage by remember { mutableStateOf("java_statements") }
+        val options = listOf(
+            DropdownOption("java_statements", "Java Statement(s)"),
+            DropdownOption("java_program", "Java Program / Class"),
+            DropdownOption("java_expression", "Java Expression")
+        )
+
+        Box(
+            modifier = Modifier
+                .background(JPadTheme.colors.backgroundPanel)
+                .padding(12.dp)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                JPadDropdown(
+                    labelPrefix = "Language:",
+                    options = options,
+                    selectedOption = selectedLanguage,
+                    onOptionSelected = { selectedLanguage = it }
+                )
+                JPadDropdown(
+                    labelPrefix = "Connection:",
+                    options = listOf(DropdownOption("none", "None")),
+                    selectedOption = "none",
+                    onOptionSelected = {}
                 )
             }
         }

@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import org.andrew.jpad.ui.theme.JPadTheme
 
@@ -117,6 +118,50 @@ fun JPadToolbarButton(
                 Text(
                     text = "($shortcut)",
                     style = JPadTheme.typography.uiSmall.copy(color = colors.textMuted)
+                )
+            }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun JPadToolbarButtonPreview() {
+    JPadTheme {
+        Box(
+            modifier = Modifier
+                .background(JPadTheme.colors.backgroundPanel)
+                .padding(12.dp)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                JPadToolbarButton(
+                    onClick = {},
+                    text = "Execute",
+                    shortcut = "F5",
+                    style = JPadButtonStyle.RUN,
+                    icon = { Text("▶", color = JPadTheme.colors.runSuccess) }
+                )
+                JPadToolbarButton(
+                    onClick = {},
+                    text = "Cancel",
+                    shortcut = "Shift+F5",
+                    style = JPadButtonStyle.STOP,
+                    icon = { Text("■", color = JPadTheme.colors.stopRed) }
+                )
+                JPadToolbarButton(
+                    onClick = {},
+                    text = "Primary Action",
+                    style = JPadButtonStyle.PRIMARY
+                )
+                JPadToolbarButton(
+                    onClick = {},
+                    text = "Ghost Action",
+                    style = JPadButtonStyle.GHOST
+                )
+                JPadToolbarButton(
+                    onClick = {},
+                    text = "Disabled",
+                    enabled = false
                 )
             }
         }

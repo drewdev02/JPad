@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import org.andrew.jpad.ui.theme.JPadTheme
 
@@ -177,6 +178,31 @@ fun JPadQueryTab(
                     )
                 )
             }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun JPadTabsPreview() {
+    JPadTheme {
+        Box(
+            modifier = Modifier
+                .background(JPadTheme.colors.backgroundPanel)
+                .padding(12.dp)
+        ) {
+            val tabs = listOf(
+                QueryTabItem(id = "1", title = "Scratchpad.java", isModified = true),
+                QueryTabItem(id = "2", title = "QueryDatabase.java", isModified = false),
+                QueryTabItem(id = "3", title = "Benchmark.java", isModified = false)
+            )
+            JPadQueryTabBar(
+                tabs = tabs,
+                selectedTabId = "1",
+                onTabSelected = {},
+                onTabClosed = {},
+                onNewTab = {}
+            )
         }
     }
 }
