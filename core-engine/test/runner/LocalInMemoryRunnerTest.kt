@@ -1,5 +1,7 @@
 package org.andrew.jpad.core.runner
 
+import org.andrew.jpad.core.di.coreEngineModule
+import org.koin.dsl.koinApplication
 import org.andrew.jpad.core.compiler.InMemoryJavaCompiler
 import org.andrew.jpad.core.parser.SnippetWrapper
 import kotlin.test.Test
@@ -11,7 +13,7 @@ class LocalInMemoryRunnerTest {
 
     private val compiler = InMemoryJavaCompiler()
     private val wrapper = SnippetWrapper()
-    private val runner = LocalInMemoryRunner()
+    private val runner = koinApplication { modules(coreEngineModule) }.koin.get<LocalInMemoryRunner>()
 
     @Test
     fun `executes statements snippet and captures stdout output`() {

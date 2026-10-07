@@ -2,3 +2,6 @@ product: jvm/lib
 
 dependencies:
   - $libs.koin.core
+
+test-dependencies:
+  - $libs.koin.test

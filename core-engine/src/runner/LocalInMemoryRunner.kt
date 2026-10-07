@@ -8,7 +8,7 @@ import java.io.PrintStream
 import java.lang.reflect.InvocationTargetException
 
 class LocalInMemoryRunner(
-    private val objectDumper: ObjectDumper = ObjectDumper()
+    private val objectDumper: ObjectDumper
 ) : ScriptRunner {
 
     override fun run(

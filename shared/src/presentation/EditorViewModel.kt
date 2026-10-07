@@ -74,7 +74,7 @@ private val DEFAULT_DUMP_SAMPLE = DumpValue.Table(
 )
 
 class EditorViewModel(
-    private val executionEngine: ExecutionEngine = ExecutionEngine(),
+    private val executionEngine: ExecutionEngine,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default
 ) : ViewModel() {
 

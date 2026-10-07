@@ -11,6 +11,8 @@ import org.andrew.jpad.core.ExecutionEngine
 import org.andrew.jpad.core.dump.DumpValue
 import org.andrew.jpad.ui.components.EngineState
 import org.andrew.jpad.ui.components.ScriptLanguageMode
+import org.andrew.jpad.core.di.coreEngineModule
+import org.koin.dsl.koinApplication
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -23,7 +25,7 @@ import kotlin.test.assertTrue
 class EditorViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
-    private val executionEngine = ExecutionEngine()
+    private val executionEngine = koinApplication { modules(coreEngineModule) }.koin.get<ExecutionEngine>()
     private lateinit var viewModel: EditorViewModel
 
     @BeforeTest

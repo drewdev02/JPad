@@ -2,6 +2,8 @@ package org.andrew.jpad.core
 
 import org.andrew.jpad.core.compiler.DiagnosticKind
 import org.andrew.jpad.core.dump.DumpValue
+import org.andrew.jpad.core.di.coreEngineModule
+import org.koin.dsl.koinApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -10,7 +12,7 @@ import kotlin.test.assertTrue
 
 class ExecutionEngineTest {
 
-    private val engine = ExecutionEngine()
+    private val engine = koinApplication { modules(coreEngineModule) }.koin.get<ExecutionEngine>()
 
     @Test
     fun `executes raw statements end to end and returns formatted output`() {
@@ -59,5 +61,43 @@ class ExecutionEngineTest {
         assertEquals(2, dumpTable.rows.size)
         assertTrue(dumpTable.columns.contains("name"))
         assertTrue(dumpTable.columns.contains("price"))
+    }
+
+    @Test
+    fun `executes modern java 21 script with sealed types pattern matching and virtual threads`() {
+        val script = """
+            enum Severity { LOW, MEDIUM, CRITICAL }
+            sealed interface Task permits Feature, Bug, Chore {}
+            record Feature(String title, int storyPoints) implements Task {}
+            record Bug(String title, Severity severity) implements Task {}
+            record Chore(String title, Duration estimate) implements Task {}
+
+            record Developer(String name, String role, int experienceYears, boolean isRemote, List<Task> tasks) {}
+
+            var team = List.of(
+                new Developer("Andrew", "Lead Architect", 8, true, List.of(
+                    new Feature("Engine socket protocol", 13),
+                    new Bug("Memory leak in dump renderer", Severity.CRITICAL),
+                    new Chore("Update CI pipeline", Duration.ofHours(4))))
+            );
+
+            int weight(Task t) {
+                return switch (t) {
+                    case Feature f -> f.storyPoints();
+                    case Bug b when b.severity() == Severity.CRITICAL -> 8;
+                    case Bug b -> 3;
+                    case Chore c -> (int) c.estimate().toHours();
+                };
+            }
+
+            dump(team, "Equipo completo");
+            System.out.println("Developer tasks: " + team.get(0).tasks().size());
+        """.trimIndent()
+
+        val response = engine.execute(script)
+
+        assertTrue(response.isSuccess, "Error: ${response.error}")
+        assertTrue(response.output.contains("Developer tasks: 3"))
+        assertEquals(1, response.dumps.size)
     }
 }

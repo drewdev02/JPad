@@ -7,14 +7,10 @@ public final class JPad {
         void accept(Object obj, String title);
     }
 
-    private static final ThreadLocal<DumpConsumer> CURRENT_CONSUMER = new ThreadLocal<>();
+    private static volatile DumpConsumer currentConsumer = null;
 
     public static void setDumpConsumer(DumpConsumer consumer) {
-        if (consumer == null) {
-            CURRENT_CONSUMER.remove();
-        } else {
-            CURRENT_CONSUMER.set(consumer);
-        }
+        currentConsumer = consumer;
     }
 
     public static <T> T dump(T obj) {
@@ -22,7 +18,7 @@ public final class JPad {
     }
 
     public static <T> T dump(T obj, String title) {
-        DumpConsumer consumer = CURRENT_CONSUMER.get();
+        DumpConsumer consumer = currentConsumer;
         if (consumer != null) {
             consumer.accept(obj, title);
         } else {
