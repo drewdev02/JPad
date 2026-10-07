@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,8 +30,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import org.andrew.jpad.core.dump.DumpValue
 import org.andrew.jpad.ui.theme.JPadTheme
 
 @Composable
@@ -68,6 +73,8 @@ fun DumpPrimitiveCell(
             color = color,
             fontStyle = style
         ),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = modifier.padding(horizontal = 6.dp, vertical = 2.dp)
     )
 }
@@ -87,6 +94,33 @@ fun DumpTextCell(
     )
 }
 
+private fun calculateColumnWidths(table: DumpValue.Table): Map<String, Dp> {
+    val charWidthDp = 8.5f
+    val cellPaddingDp = 24f
+
+    return table.columns.associateWith { colName ->
+        var maxChars = colName.length
+        table.rows.forEach { rowMap ->
+            val valueChars = when (val cellVal = rowMap[colName]) {
+                null -> 4
+                is DumpValue.Primitive -> when (val raw = cellVal.rawValue) {
+                    null -> 4
+                    is String -> raw.length + 2
+                    else -> raw.toString().length
+                }
+                is DumpValue.Table -> cellVal.typeName.length + 12
+                is DumpValue.KeyValueList -> cellVal.title.length + 6
+                is DumpValue.Text -> cellVal.content.take(60).length
+            }
+            if (valueChars > maxChars) {
+                maxChars = valueChars
+            }
+        }
+        val computedDp = (maxChars * charWidthDp + cellPaddingDp).dp
+        maxOf(90.dp, minOf(computedDp, 500.dp))
+    }
+}
+
 @Composable
 fun DumpTableView(
     table: DumpValue.Table,
@@ -96,6 +130,12 @@ fun DumpTableView(
     var isExpanded by remember { mutableStateOf(true) }
     val colors = JPadTheme.colors
     val headerBg = if (depth == 0) colors.accentHeaderTable else colors.accentHeaderNested
+
+    val columnWidths = remember(table) { calculateColumnWidths(table) }
+    val rowIndexWidth = remember(table.rows.size) {
+        val digits = maxOf(1, table.rows.size.toString().length)
+        maxOf(36.dp, (digits * 9 + 20).dp)
+    }
 
     Column(
         modifier = modifier
@@ -138,13 +178,14 @@ fun DumpTableView(
                     Row(
                         modifier = Modifier
                             .background(colors.backgroundPanelHeader)
-                            .border(1.dp, colors.gridLine)
+                            .border(0.5.dp, colors.gridLine),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Row index column header
                         Box(
                             modifier = Modifier
-                                .widthIn(min = 36.dp)
-                                .height(JPadTheme.dimensions.gridRowHeight)
+                                .width(rowIndexWidth)
+                                .height(JPadTheme.dimensions.gridHeaderHeight)
                                 .border(0.5.dp, colors.gridLine)
                                 .padding(horizontal = 4.dp),
                             contentAlignment = Alignment.Center
@@ -159,10 +200,11 @@ fun DumpTableView(
                         }
 
                         table.columns.forEach { colName ->
+                            val colWidth = columnWidths[colName] ?: 100.dp
                             Box(
                                 modifier = Modifier
-                                    .widthIn(min = 100.dp)
-                                    .height(JPadTheme.dimensions.gridRowHeight)
+                                    .width(colWidth)
+                                    .height(JPadTheme.dimensions.gridHeaderHeight)
                                     .border(0.5.dp, colors.gridLine)
                                     .padding(horizontal = 6.dp),
                                 contentAlignment = Alignment.CenterStart
@@ -172,7 +214,9 @@ fun DumpTableView(
                                     style = JPadTheme.typography.uiSmall.copy(
                                         color = colors.textPrimary,
                                         fontWeight = FontWeight.SemiBold
-                                    )
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -191,8 +235,8 @@ fun DumpTableView(
                             // Row number
                             Box(
                                 modifier = Modifier
-                                    .widthIn(min = 36.dp)
-                                    .height(JPadTheme.dimensions.gridRowHeight)
+                                    .width(rowIndexWidth)
+                                    .defaultMinSize(minHeight = JPadTheme.dimensions.gridRowHeight)
                                     .border(0.5.dp, colors.gridLine)
                                     .padding(horizontal = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -206,12 +250,12 @@ fun DumpTableView(
                             // Columns cells
                             table.columns.forEach { colName ->
                                 val cellVal = rowMap[colName] ?: DumpValue.Primitive(null)
+                                val colWidth = columnWidths[colName] ?: 100.dp
                                 Box(
                                     modifier = Modifier
-                                        .widthIn(min = 100.dp)
-                                        .height(JPadTheme.dimensions.gridRowHeight)
-                                        .border(0.5.dp, colors.gridLine)
-                                        .padding(horizontal = 2.dp),
+                                        .width(colWidth)
+                                        .defaultMinSize(minHeight = JPadTheme.dimensions.gridRowHeight)
+                                        .border(0.5.dp, colors.gridLine),
                                     contentAlignment = Alignment.CenterStart
                                 ) {
                                     JPadDumpViewer(value = cellVal, depth = depth + 1)
@@ -234,6 +278,13 @@ fun DumpKeyValueView(
     var isExpanded by remember { mutableStateOf(true) }
     val colors = JPadTheme.colors
     val headerBg = if (depth == 0) colors.accentHeaderTable else colors.accentHeaderNested
+
+    val maxKeyWidth = remember(kv.entries) {
+        val charWidthDp = 8.5f
+        val paddingDp = 20f
+        val maxKeyChars = kv.entries.maxOfOrNull { it.first.length } ?: 10
+        maxOf(110.dp, minOf((maxKeyChars * charWidthDp + paddingDp).dp, 300.dp))
+    }
 
     Column(
         modifier = modifier
@@ -283,7 +334,7 @@ fun DumpKeyValueView(
                                 color = colors.syntaxType,
                                 fontWeight = FontWeight.SemiBold
                             ),
-                            modifier = Modifier.widthIn(min = 120.dp)
+                            modifier = Modifier.width(maxKeyWidth)
                         )
                         Box(modifier = Modifier.weight(1f)) {
                             JPadDumpViewer(value = value, depth = depth + 1)

@@ -4,6 +4,7 @@ import org.andrew.jpad.core.compiler.CompilationDiagnostic
 import org.andrew.jpad.core.compiler.DiagnosticKind
 import org.andrew.jpad.core.compiler.InMemoryJavaCompiler
 import org.andrew.jpad.core.compiler.JavaCompilerService
+import org.andrew.jpad.core.dump.DumpValue
 import org.andrew.jpad.core.parser.SnippetWrapper
 import org.andrew.jpad.core.runner.LocalInMemoryRunner
 import org.andrew.jpad.core.runner.ScriptRunner
@@ -14,7 +15,8 @@ data class ExecutionResponse(
     val output: String,
     val error: String,
     val diagnostics: List<CompilationDiagnostic> = emptyList(),
-    val durationMs: Long = 0
+    val durationMs: Long = 0,
+    val dumps: List<DumpValue> = emptyList()
 )
 
 class ExecutionEngine(
@@ -59,7 +61,8 @@ class ExecutionEngine(
             output = executionOutput.stdout,
             error = executionOutput.stderr,
             diagnostics = compilationResult.diagnostics,
-            durationMs = durationMs
+            durationMs = durationMs,
+            dumps = executionOutput.dumps
         )
     }
 }

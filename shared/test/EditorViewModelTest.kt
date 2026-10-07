@@ -8,13 +8,14 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.andrew.jpad.core.ExecutionEngine
+import org.andrew.jpad.core.dump.DumpValue
 import org.andrew.jpad.ui.components.EngineState
 import org.andrew.jpad.ui.components.ScriptLanguageMode
-import org.andrew.jpad.ui.components.grid.DumpValue
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -84,5 +85,21 @@ class EditorViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(EngineState.ERROR, state.engineState)
         assertTrue(state.consoleOutput.contains("Compilation failed") || state.statusMessage.contains("failed"))
+    }
+
+    @Test
+    fun `onExecute with dump calls updates dumpResult in uiState`() = runTest(testDispatcher) {
+        viewModel.onCodeChanged("""
+            var list = List.of(1, 2, 3);
+            dump(list);
+        """.trimIndent())
+        viewModel.onExecute()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(EngineState.SUCCESS, state.engineState)
+        assertNotNull(state.dumpResult)
+        assertIs<DumpValue.Table>(state.dumpResult)
+        assertEquals(3, state.dumpResult.rows.size)
     }
 }

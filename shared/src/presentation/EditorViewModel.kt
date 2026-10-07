@@ -11,10 +11,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.andrew.jpad.core.ExecutionEngine
+import org.andrew.jpad.core.dump.DumpValue
 import org.andrew.jpad.ui.components.EngineState
 import org.andrew.jpad.ui.components.QueryTabItem
 import org.andrew.jpad.ui.components.ScriptLanguageMode
-import org.andrew.jpad.ui.components.grid.DumpValue
 
 data class EditorUiState(
     val code: String = DEFAULT_CODE,
@@ -36,10 +36,16 @@ data class EditorUiState(
 }
 
 private const val DEFAULT_CODE = """// JPad - LINQPad for Java & JVM
-System.out.println("Welcome to JPad!");
-for (int i = 1; i <= 5; i++) {
-    System.out.println("Processing item #" + i);
-}
+record Developer(String name, String role, int experienceYears, boolean isRemote) {}
+
+var team = List.of(
+    new Developer("Andrew", "Lead Architect", 8, true),
+    new Developer("Elena", "Senior Backend Engineer", 6, true),
+    new Developer("Lucas", "Compiler & JVM Specialist", 10, false)
+);
+
+dump(team, "Active Engineering Team");
+System.out.println("Execution finished. Team size: " + team.size());
 """
 
 private val DEFAULT_DUMP_SAMPLE = DumpValue.Table(
@@ -140,6 +146,7 @@ class EditorViewModel(
                         engineState = EngineState.SUCCESS,
                         statusMessage = "Execution completed successfully",
                         consoleOutput = response.output,
+                        dumpResult = response.dumps.lastOrNull() ?: it.dumpResult,
                         executionTimeMs = response.durationMs
                     )
                 }

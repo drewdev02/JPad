@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import org.andrew.jpad.core.dump.DumpValue
 import org.andrew.jpad.presentation.EditorUiState
 import org.andrew.jpad.presentation.EditorViewModel
 import org.andrew.jpad.ui.components.EngineState
