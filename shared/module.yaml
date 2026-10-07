@@ -14,9 +14,14 @@ dependencies:
   - $compose.hotReload.runtimeApi
   - $libs.androidx.lifecycle.viewmodel.compose
   - $libs.androidx.lifecycle.runtime.compose
+  - $libs.kotlinx.coroutines.core
   - $libs.koin.core
   - $libs.koin.compose
   - $libs.koin.compose.viewmodel
+
+test-dependencies:
+  - $libs.kotlinx.coroutines.test
+  - $libs.koin.test
 
 settings:
   compose:

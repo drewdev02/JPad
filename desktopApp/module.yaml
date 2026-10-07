@@ -7,6 +7,8 @@ dependencies:
   - $compose.desktop.currentOs
   - $compose.preview
   - $libs.kotlinx.coroutines.swing
+  - $libs.koin.core
+  - $libs.koin.compose
   - $libs.logback.classic
 
 settings:
