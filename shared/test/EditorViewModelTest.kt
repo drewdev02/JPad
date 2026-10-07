@@ -102,4 +102,10 @@ class EditorViewModelTest {
         assertIs<DumpValue.Table>(state.dumpResult)
         assertEquals(3, state.dumpResult.rows.size)
     }
+
+    @Test
+    fun `onCursorPositionChanged updates cursor coordinates in uiState`() {
+        viewModel.onCursorPositionChanged(14, 28)
+        assertEquals(Pair(14, 28), viewModel.uiState.value.cursorPosition)
+    }
 }

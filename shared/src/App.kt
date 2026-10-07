@@ -35,6 +35,7 @@ import org.andrew.jpad.ui.components.JPadStatusBar
 import org.andrew.jpad.ui.components.JPadToolbar
 import org.andrew.jpad.ui.components.JPadWorkspaceLayout
 import org.andrew.jpad.ui.components.ScriptLanguageMode
+import org.andrew.jpad.ui.components.editor.JPadCodeEditor
 import org.andrew.jpad.ui.components.grid.JPadDumpViewer
 import org.andrew.jpad.ui.theme.JPadTheme
 import org.jetbrains.compose.reload.DevelopmentEntryPoint
@@ -50,6 +51,7 @@ fun App(
     AppContent(
         state = state,
         onCodeChanged = viewModel::onCodeChanged,
+        onCursorPositionChanged = viewModel::onCursorPositionChanged,
         onLanguageModeChanged = viewModel::onLanguageModeChanged,
         onTabSelected = viewModel::onTabSelected,
         onTabClosed = viewModel::onTabClosed,
@@ -68,6 +70,7 @@ enum class ResultViewTab {
 fun AppContent(
     state: EditorUiState,
     onCodeChanged: (String) -> Unit,
+    onCursorPositionChanged: (Int, Int) -> Unit = { _, _ -> },
     onLanguageModeChanged: (ScriptLanguageMode) -> Unit,
     onTabSelected: (String) -> Unit,
     onTabClosed: (String) -> Unit,
@@ -131,20 +134,12 @@ fun AppContent(
                 }
             },
             editor = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(JPadTheme.colors.backgroundEditor)
-                        .padding(8.dp)
-                ) {
-                    BasicTextField(
-                        value = state.code,
-                        onValueChange = onCodeChanged,
-                        textStyle = JPadTheme.typography.code,
-                        cursorBrush = SolidColor(JPadTheme.colors.accentPrimary),
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+                JPadCodeEditor(
+                    value = state.code,
+                    onValueChange = onCodeChanged,
+                    onCursorPositionChange = onCursorPositionChanged,
+                    modifier = Modifier.fillMaxSize()
+                )
             },
             resultsPanel = {
                 Column(
