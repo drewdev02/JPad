@@ -38,6 +38,8 @@ fun JPadToolbar(
     onSaveClick: (() -> Unit)? = null,
     onOpenClick: (() -> Unit)? = null,
     onNewQueryClick: (() -> Unit)? = null,
+    isSidebarVisible: Boolean = true,
+    onToggleSidebar: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val colors = JPadTheme.colors
@@ -108,6 +110,18 @@ fun JPadToolbar(
                 style = JPadButtonStyle.DEFAULT,
                 icon = {
                     Text("+", style = JPadTheme.typography.uiSmall)
+                }
+            )
+        }
+
+        onToggleSidebar?.let { onToggle ->
+            JPadToolbarButton(
+                onClick = onToggle,
+                text = "Explorer",
+                shortcut = "Ctrl+B",
+                style = if (isSidebarVisible) JPadButtonStyle.DEFAULT else JPadButtonStyle.GHOST,
+                icon = {
+                    Text(if (isSidebarVisible) "◧" else "◻", style = JPadTheme.typography.uiSmall)
                 }
             )
         }

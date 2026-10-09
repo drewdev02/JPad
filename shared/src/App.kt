@@ -48,6 +48,7 @@ import org.andrew.jpad.ui.components.ScriptLanguageMode
 import org.andrew.jpad.ui.components.editor.JPadCodeEditor
 import org.andrew.jpad.ui.components.grid.JPadMultiDumpViewer
 import org.andrew.jpad.ui.components.results.JPadProblemsViewer
+import org.andrew.jpad.ui.components.sidebar.JPadFileExplorer
 import org.andrew.jpad.ui.theme.JPadTheme
 import org.jetbrains.compose.reload.DevelopmentEntryPoint
 import org.koin.compose.viewmodel.koinViewModel
@@ -72,7 +73,15 @@ fun App(
         onSave = { viewModel.saveCurrentTab() },
         onSaveAs = viewModel::onSaveAsDialog,
         onOpen = viewModel::onOpenFileDialog,
-        onSelectProblem = viewModel::onNavigateToPosition
+        onSelectProblem = viewModel::onNavigateToPosition,
+        onToggleSidebar = viewModel::toggleSidebar,
+        onFileOpen = { viewModel.openFile(it) },
+        onToggleDirectory = viewModel::toggleDirectoryExpanded,
+        onOpenFolderDialog = viewModel::onOpenFolderDialog,
+        onRefreshWorkspace = viewModel::refreshWorkspace,
+        onStartCreatingFile = viewModel::startCreatingFile,
+        onCancelCreatingFile = viewModel::cancelCreatingFile,
+        onConfirmCreateFile = viewModel::createFileInWorkspace
     )
 }
 
@@ -96,7 +105,15 @@ fun AppContent(
     onSave: () -> Unit = {},
     onSaveAs: () -> Unit = {},
     onOpen: () -> Unit = {},
-    onSelectProblem: (line: Int, col: Int) -> Unit = { _, _ -> }
+    onSelectProblem: (line: Int, col: Int) -> Unit = { _, _ -> },
+    onToggleSidebar: () -> Unit = {},
+    onFileOpen: (String) -> Unit = {},
+    onToggleDirectory: (String) -> Unit = {},
+    onOpenFolderDialog: () -> Unit = {},
+    onRefreshWorkspace: () -> Unit = {},
+    onStartCreatingFile: () -> Unit = {},
+    onCancelCreatingFile: () -> Unit = {},
+    onConfirmCreateFile: (String) -> Unit = {}
 ) {
     var activeResultTab by remember { mutableStateOf(ResultViewTab.CONSOLE_OUTPUT) }
 
@@ -161,6 +178,10 @@ fun AppContent(
                         onSave()
                         true
                     }
+                    isModifierDown && event.key == Key.B -> {
+                        onToggleSidebar()
+                        true
+                    }
                     isModifierDown && event.key == Key.O -> {
                         onOpen()
                         true
@@ -180,7 +201,9 @@ fun AppContent(
                         isRunning = state.isRunning,
                         onOpenClick = onOpen,
                         onSaveClick = onSave,
-                        onNewQueryClick = onNewTab
+                        onNewQueryClick = onNewTab,
+                        isSidebarVisible = state.isSidebarVisible,
+                        onToggleSidebar = onToggleSidebar
                     )
                 },
                 queryTabBar = {
@@ -192,39 +215,26 @@ fun AppContent(
                         onNewTab = onNewTab
                     )
                 },
-                sidebar = {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp)
-                    ) {
-                        Text(
-                            text = "EXPLORER",
-                            style = JPadTheme.typography.uiSmall.copy(
-                                color = JPadTheme.colors.textMuted,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            modifier = Modifier.padding(bottom = 8.dp)
+                sidebar = if (state.isSidebarVisible) {
+                    {
+                        JPadFileExplorer(
+                            workspaceDirectory = state.workspaceDirectory,
+                            items = state.explorerItems,
+                            openScripts = state.openScripts,
+                            isCreatingFile = state.isCreatingFile,
+                            onFileSelected = onFileOpen,
+                            onScriptSelected = onTabSelected,
+                            onScriptClosed = onTabClosed,
+                            onToggleDirectory = onToggleDirectory,
+                            onOpenFolderClick = onOpenFolderDialog,
+                            onRefreshClick = onRefreshWorkspace,
+                            onNewFileClick = onStartCreatingFile,
+                            onConfirmCreateFile = onConfirmCreateFile,
+                            onCancelCreateFile = onCancelCreatingFile,
+                            onCollapseSidebar = onToggleSidebar
                         )
-                        Text(
-                            text = "📁 My Queries",
-                            style = JPadTheme.typography.uiBody.copy(color = JPadTheme.colors.textPrimary),
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        )
-                        state.tabs.forEach { tab ->
-                            val isSelected = tab.id == state.selectedTabId
-                            val color = if (isSelected) JPadTheme.colors.accentPrimary else JPadTheme.colors.textSecondary
-                            Text(
-                                text = "  📄 ${tab.title}",
-                                style = JPadTheme.typography.uiSmall.copy(color = color),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onTabSelected(tab.id) }
-                                    .padding(vertical = 2.dp)
-                            )
-                        }
                     }
-                },
+                } else null,
                 editor = {
                     key(state.selectedTabId) {
                         JPadCodeEditor(

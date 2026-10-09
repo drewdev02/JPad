@@ -17,6 +17,10 @@ import org.andrew.jpad.core.dump.DumpValue
 import org.andrew.jpad.ui.components.EngineState
 import org.andrew.jpad.ui.components.QueryTabItem
 import org.andrew.jpad.ui.components.ScriptLanguageMode
+import org.andrew.jpad.ui.components.sidebar.FileExplorerItem
+import org.andrew.jpad.ui.components.sidebar.OpenScriptItem
+import org.andrew.jpad.ui.components.sidebar.buildVisibleFileTree
+import java.io.File
 
 data class QueryTabSession(
     val id: String,
@@ -95,7 +99,12 @@ data class EditorUiState(
     val tabs: List<QueryTabSession> = DEFAULT_TABS,
     val selectedTabId: String = "1",
     val targetCursorPosition: Pair<Int, Int>? = null,
-    val memoryUsageMb: Long? = 54
+    val memoryUsageMb: Long? = 54,
+    val isSidebarVisible: Boolean = true,
+    val workspaceDirectory: String = File(System.getProperty("user.home"), ".jpad/queries").absolutePath,
+    val expandedDirectories: Set<String> = emptySet(),
+    val isCreatingFile: Boolean = false,
+    val explorerItems: List<FileExplorerItem> = emptyList()
 ) {
     val activeTab: QueryTabSession
         get() = tabs.firstOrNull { it.id == selectedTabId } ?: tabs.firstOrNull() ?: QueryTabSession("1", "Scratchpad.java")
@@ -114,6 +123,9 @@ data class EditorUiState(
 
     val tabItems: List<QueryTabItem>
         get() = tabs.map { QueryTabItem(id = it.id, title = it.title, isModified = it.isModified) }
+
+    val openScripts: List<OpenScriptItem>
+        get() = tabs.map { OpenScriptItem(id = it.id, title = it.title, isModified = it.isModified, isSelected = it.id == selectedTabId) }
 }
 
 class EditorViewModel(
@@ -125,6 +137,16 @@ class EditorViewModel(
     val uiState: StateFlow<EditorUiState> = _uiState.asStateFlow()
 
     private var executionJob: Job? = null
+
+    init {
+        try {
+            val dir = File(_uiState.value.workspaceDirectory)
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
+        } catch (_: Exception) {}
+        refreshWorkspace()
+    }
 
     fun onCodeChanged(newCode: String) {
         val currentSelectedId = _uiState.value.selectedTabId
@@ -152,14 +174,17 @@ class EditorViewModel(
 
     fun onTabSelected(tabId: String) {
         if (_uiState.value.tabs.any { it.id == tabId }) {
-            _uiState.update { it.copy(selectedTabId = tabId) }
+            _uiState.update { state ->
+                val next = state.copy(selectedTabId = tabId)
+                next.copy(explorerItems = updateExplorerSelection(next))
+            }
         }
     }
 
     fun onTabClosed(tabId: String) {
         _uiState.update { state ->
             val remainingTabs = state.tabs.filterNot { it.id == tabId }
-            if (remainingTabs.isEmpty()) {
+            val nextState = if (remainingTabs.isEmpty()) {
                 val newId = System.currentTimeMillis().toString()
                 val defaultTab = QueryTabSession(id = newId, title = "Query1.java", code = "")
                 state.copy(tabs = listOf(defaultTab), selectedTabId = newId)
@@ -173,6 +198,7 @@ class EditorViewModel(
                 }
                 state.copy(tabs = remainingTabs, selectedTabId = nextSelected)
             }
+            nextState.copy(explorerItems = updateExplorerSelection(nextState))
         }
     }
 
@@ -190,7 +216,8 @@ class EditorViewModel(
                 code = initialCode,
                 isModified = false
             )
-            state.copy(tabs = state.tabs + newTab, selectedTabId = newId)
+            val next = state.copy(tabs = state.tabs + newTab, selectedTabId = newId)
+            next.copy(explorerItems = updateExplorerSelection(next))
         }
     }
 
@@ -279,12 +306,12 @@ class EditorViewModel(
     fun saveCurrentTab(destinationPath: String? = null): Boolean {
         val active = _uiState.value.activeTab
         val targetPath = destinationPath ?: active.filePath ?: run {
-            val dir = java.io.File(System.getProperty("user.home"), ".jpad/queries").also { it.mkdirs() }
-            java.io.File(dir, active.title).absolutePath
+            val dir = File(_uiState.value.workspaceDirectory).also { it.mkdirs() }
+            File(dir, active.title).absolutePath
         }
 
         return try {
-            val file = java.io.File(targetPath)
+            val file = File(targetPath)
             file.parentFile?.mkdirs()
             file.writeText(active.code)
             _uiState.update { state ->
@@ -297,7 +324,15 @@ class EditorViewModel(
                         )
                     } else tab
                 }
-                state.copy(tabs = updatedTabs)
+                val nextState = state.copy(tabs = updatedTabs)
+                nextState.copy(
+                    explorerItems = buildVisibleFileTree(
+                        root = File(nextState.workspaceDirectory),
+                        expanded = nextState.expandedDirectories,
+                        activeFilePath = nextState.activeTab.filePath,
+                        openFilePaths = nextState.tabs.mapNotNull { it.filePath }.toSet()
+                    )
+                )
             }
             true
         } catch (_: Exception) {
@@ -306,7 +341,7 @@ class EditorViewModel(
     }
 
     fun openFile(filePath: String, content: String? = null): Boolean {
-        val file = java.io.File(filePath)
+        val file = File(filePath)
         val text = content ?: try {
             if (file.exists()) file.readText() else return false
         } catch (_: Exception) {
@@ -315,7 +350,7 @@ class EditorViewModel(
 
         _uiState.update { state ->
             val existingTab = state.tabs.firstOrNull { it.filePath == file.absolutePath }
-            if (existingTab != null) {
+            val nextState = if (existingTab != null) {
                 state.copy(selectedTabId = existingTab.id)
             } else {
                 val newId = System.currentTimeMillis().toString()
@@ -328,8 +363,108 @@ class EditorViewModel(
                 )
                 state.copy(tabs = state.tabs + newTab, selectedTabId = newId)
             }
+            nextState.copy(explorerItems = updateExplorerSelection(nextState))
         }
         return true
+    }
+
+    private fun updateExplorerSelection(state: EditorUiState): List<FileExplorerItem> {
+        val activePath = state.activeTab.filePath
+        val openPaths = state.tabs.mapNotNull { it.filePath }.toSet()
+        return state.explorerItems.map {
+            it.copy(
+                isSelected = it.file.absolutePath == activePath,
+                isOpenInTab = openPaths.contains(it.file.absolutePath)
+            )
+        }
+    }
+
+    fun toggleSidebar() {
+        _uiState.update { it.copy(isSidebarVisible = !it.isSidebarVisible) }
+    }
+
+    fun setSidebarVisible(visible: Boolean) {
+        _uiState.update { it.copy(isSidebarVisible = visible) }
+    }
+
+    fun setWorkspaceDirectory(path: String) {
+        try {
+            val dir = File(path)
+            if (!dir.exists()) dir.mkdirs()
+        } catch (_: Exception) {}
+        _uiState.update { state ->
+            val updatedState = state.copy(
+                workspaceDirectory = path,
+                expandedDirectories = emptySet()
+            )
+            val items = buildVisibleFileTree(
+                root = File(path),
+                expanded = emptySet(),
+                activeFilePath = updatedState.activeTab.filePath,
+                openFilePaths = updatedState.tabs.mapNotNull { it.filePath }.toSet()
+            )
+            updatedState.copy(explorerItems = items)
+        }
+    }
+
+    fun refreshWorkspace() {
+        _uiState.update { state ->
+            val items = buildVisibleFileTree(
+                root = File(state.workspaceDirectory),
+                expanded = state.expandedDirectories,
+                activeFilePath = state.activeTab.filePath,
+                openFilePaths = state.tabs.mapNotNull { it.filePath }.toSet()
+            )
+            state.copy(explorerItems = items)
+        }
+    }
+
+    fun toggleDirectoryExpanded(path: String) {
+        _uiState.update { state ->
+            val updatedExpanded = if (state.expandedDirectories.contains(path)) {
+                state.expandedDirectories - path
+            } else {
+                state.expandedDirectories + path
+            }
+            val items = buildVisibleFileTree(
+                root = File(state.workspaceDirectory),
+                expanded = updatedExpanded,
+                activeFilePath = state.activeTab.filePath,
+                openFilePaths = state.tabs.mapNotNull { it.filePath }.toSet()
+            )
+            state.copy(
+                expandedDirectories = updatedExpanded,
+                explorerItems = items
+            )
+        }
+    }
+
+    fun startCreatingFile() {
+        _uiState.update { it.copy(isCreatingFile = true) }
+    }
+
+    fun cancelCreatingFile() {
+        _uiState.update { it.copy(isCreatingFile = false) }
+    }
+
+    fun createFileInWorkspace(fileName: String) {
+        val trimmed = fileName.trim()
+        val nameWithExt = if (trimmed.contains('.')) trimmed else "$trimmed.java"
+        val workspaceDir = File(_uiState.value.workspaceDirectory).also { it.mkdirs() }
+        val targetFile = File(workspaceDir, nameWithExt)
+
+        if (!targetFile.exists()) {
+            val template = """// $nameWithExt
+System.out.println("Hello from $nameWithExt!");
+"""
+            try {
+                targetFile.writeText(template)
+            } catch (_: Exception) {}
+        }
+
+        openFile(targetFile.absolutePath)
+        _uiState.update { it.copy(isCreatingFile = false) }
+        refreshWorkspace()
     }
 
     fun onNavigateToPosition(line: Int, col: Int) {
@@ -345,6 +480,11 @@ class EditorViewModel(
         val active = _uiState.value.activeTab
         val chosen = showNativeSaveFileDialog(defaultName = active.title) ?: return
         saveCurrentTab(chosen)
+    }
+
+    fun onOpenFolderDialog() {
+        val chosen = showNativeOpenFolderDialog() ?: return
+        setWorkspaceDirectory(chosen)
     }
 }
 
@@ -371,5 +511,31 @@ internal fun showNativeSaveFileDialog(defaultName: String = "Scratchpad.java", t
         java.io.File(dir, file).absolutePath
     } catch (_: Throwable) {
         null
+    }
+}
+
+internal fun showNativeOpenFolderDialog(title: String = "Select Working Directory"): String? {
+    return try {
+        System.setProperty("apple.awt.fileDialogForDirectories", "true")
+        val dialog = java.awt.FileDialog(null as java.awt.Frame?, title, java.awt.FileDialog.LOAD)
+        dialog.isVisible = true
+        val file = dialog.file ?: return null
+        val dir = dialog.directory ?: return null
+        val chosen = java.io.File(dir, file)
+        if (chosen.isDirectory) chosen.absolutePath else chosen.parentFile?.absolutePath ?: chosen.absolutePath
+    } catch (_: Throwable) {
+        try {
+            val chooser = javax.swing.JFileChooser().apply {
+                fileSelectionMode = javax.swing.JFileChooser.DIRECTORIES_ONLY
+                dialogTitle = title
+            }
+            if (chooser.showOpenDialog(null) == javax.swing.JFileChooser.APPROVE_OPTION) {
+                chooser.selectedFile.absolutePath
+            } else null
+        } catch (_: Throwable) {
+            null
+        }
+    } finally {
+        System.setProperty("apple.awt.fileDialogForDirectories", "false")
     }
 }

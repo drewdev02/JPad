@@ -234,4 +234,89 @@ class EditorViewModelTest {
         viewModel.onCodeChanged("String s = \"reset\";")
         assertEquals(null, viewModel.uiState.value.targetCursorPosition)
     }
+
+    @Test
+    fun `toggleSidebar and setSidebarVisible update visibility`() {
+        assertTrue(viewModel.uiState.value.isSidebarVisible)
+
+        viewModel.toggleSidebar()
+        assertFalse(viewModel.uiState.value.isSidebarVisible)
+
+        viewModel.toggleSidebar()
+        assertTrue(viewModel.uiState.value.isSidebarVisible)
+
+        viewModel.setSidebarVisible(false)
+        assertFalse(viewModel.uiState.value.isSidebarVisible)
+    }
+
+    @Test
+    fun `workspace directory scanning and file creation in workspace`() {
+        val tempDir = java.nio.file.Files.createTempDirectory("jpad_workspace_test").toFile()
+        try {
+            viewModel.setWorkspaceDirectory(tempDir.absolutePath)
+            assertEquals(tempDir.absolutePath, viewModel.uiState.value.workspaceDirectory)
+            assertTrue(viewModel.uiState.value.explorerItems.isEmpty())
+
+            viewModel.startCreatingFile()
+            assertTrue(viewModel.uiState.value.isCreatingFile)
+            viewModel.cancelCreatingFile()
+            assertFalse(viewModel.uiState.value.isCreatingFile)
+
+            viewModel.createFileInWorkspace("CustomScript.java")
+            assertFalse(viewModel.uiState.value.isCreatingFile)
+
+            val createdFile = java.io.File(tempDir, "CustomScript.java")
+            assertTrue(createdFile.exists())
+            assertTrue(createdFile.readText().contains("CustomScript.java"))
+
+            // Verify active tab is the new file
+            val activeTab = viewModel.uiState.value.activeTab
+            assertEquals("CustomScript.java", activeTab.title)
+            assertEquals(createdFile.absolutePath, activeTab.filePath)
+
+            // Verify it's present in explorerItems
+            val items = viewModel.uiState.value.explorerItems
+            assertEquals(1, items.size)
+            assertEquals("CustomScript.java", items[0].name)
+            assertTrue(items[0].isSelected)
+            assertTrue(items[0].isOpenInTab)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `expanding and collapsing subdirectories in file tree`() {
+        val tempDir = java.nio.file.Files.createTempDirectory("jpad_tree_test").toFile()
+        try {
+            val subDir = java.io.File(tempDir, "subdir").also { it.mkdir() }
+            val nestedFile = java.io.File(subDir, "Nested.java").also { it.writeText("int nested = 1;") }
+
+            viewModel.setWorkspaceDirectory(tempDir.absolutePath)
+
+            // Initially collapsed: only subdir is visible
+            val initialItems = viewModel.uiState.value.explorerItems
+            assertEquals(1, initialItems.size)
+            assertEquals("subdir", initialItems[0].name)
+            assertTrue(initialItems[0].isDirectory)
+            assertFalse(initialItems[0].isExpanded)
+
+            // Expand subdir
+            viewModel.toggleDirectoryExpanded(subDir.absolutePath)
+            val expandedItems = viewModel.uiState.value.explorerItems
+            assertEquals(2, expandedItems.size)
+            assertEquals("subdir", expandedItems[0].name)
+            assertTrue(expandedItems[0].isExpanded)
+            assertEquals("Nested.java", expandedItems[1].name)
+            assertEquals(1, expandedItems[1].depth)
+
+            // Collapse subdir
+            viewModel.toggleDirectoryExpanded(subDir.absolutePath)
+            val collapsedItems = viewModel.uiState.value.explorerItems
+            assertEquals(1, collapsedItems.size)
+            assertFalse(collapsedItems[0].isExpanded)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
 }
