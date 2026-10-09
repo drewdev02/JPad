@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import org.andrew.jpad.core.ExecutionEngine
 import org.andrew.jpad.core.compiler.CompilationDiagnostic
 import org.andrew.jpad.core.dump.DumpValue
+import org.andrew.jpad.ui.components.BackgroundTask
 import org.andrew.jpad.ui.components.EngineState
 import org.andrew.jpad.ui.components.QueryTabItem
 import org.andrew.jpad.ui.components.ScriptLanguageMode
@@ -104,8 +105,12 @@ data class EditorUiState(
     val workspaceDirectory: String = File(System.getProperty("user.home"), ".jpad/queries").absolutePath,
     val expandedDirectories: Set<String> = emptySet(),
     val isCreatingFile: Boolean = false,
-    val explorerItems: List<FileExplorerItem> = emptyList()
+    val explorerItems: List<FileExplorerItem> = emptyList(),
+    val backgroundTasks: List<BackgroundTask> = emptyList()
 ) {
+    val activeBackgroundTask: BackgroundTask?
+        get() = backgroundTasks.firstOrNull()
+
     val activeTab: QueryTabSession
         get() = tabs.firstOrNull { it.id == selectedTabId } ?: tabs.firstOrNull() ?: QueryTabSession("1", "Scratchpad.java")
 
@@ -231,6 +236,49 @@ class EditorViewModel(
         }
     }
 
+    fun updateBackgroundTask(id: String, title: String, details: String? = null, progress: Float? = null) {
+        _uiState.update { state ->
+            val existingIndex = state.backgroundTasks.indexOfFirst { it.id == id }
+            val task = BackgroundTask(id = id, title = title, details = details, progress = progress)
+            val updated = if (existingIndex >= 0) {
+                state.backgroundTasks.toMutableList().also { it[existingIndex] = task }
+            } else {
+                state.backgroundTasks + task
+            }
+            state.copy(backgroundTasks = updated)
+        }
+    }
+
+    fun removeBackgroundTask(id: String) {
+        _uiState.update { state ->
+            state.copy(backgroundTasks = state.backgroundTasks.filterNot { it.id == id })
+        }
+    }
+
+    fun resolveDependencies(tabId: String = _uiState.value.selectedTabId) {
+        val tab = _uiState.value.tabs.firstOrNull { it.id == tabId } ?: return
+        val taskId = "deps-$tabId"
+        viewModelScope.launch(dispatcher) {
+            val coords = executionEngine.extractDependencies(tab.code)
+            if (coords.isEmpty()) return@launch
+            try {
+                updateBackgroundTask(taskId, "Resolving ${coords.size} dependencies...", progress = 0f)
+                val res = executionEngine.resolveDependencies(coords) { desc, prog ->
+                    updateBackgroundTask(taskId, desc, progress = prog)
+                }
+                if (res.isSuccess) {
+                    updateBackgroundTask(taskId, "Dependencies resolved (${res.classpathJars.size} JARs)", progress = 1.0f)
+                    kotlinx.coroutines.delay(1000)
+                } else {
+                    updateBackgroundTask(taskId, "Failed to resolve dependencies", progress = null)
+                    kotlinx.coroutines.delay(2000)
+                }
+            } finally {
+                removeBackgroundTask(taskId)
+            }
+        }
+    }
+
     fun onExecute() {
         val active = _uiState.value.activeTab
         if (_uiState.value.isRunning) return
@@ -252,7 +300,18 @@ class EditorViewModel(
 
         executionJob = viewModelScope.launch(dispatcher) {
             val codeToRun = active.code
-            val response = executionEngine.execute(codeToRun)
+            val taskId = "exec-$targetTabId"
+            val response = try {
+                executionEngine.execute(codeToRun) { desc, prog ->
+                    updateBackgroundTask(
+                        id = taskId,
+                        title = desc,
+                        progress = prog
+                    )
+                }
+            } finally {
+                removeBackgroundTask(taskId)
+            }
             if (!isActive) return@launch
 
             _uiState.update { state ->
@@ -290,6 +349,8 @@ class EditorViewModel(
         executionJob = null
         executionEngine.cancel()
         val currentSelectedId = _uiState.value.selectedTabId
+        removeBackgroundTask("exec-$currentSelectedId")
+        removeBackgroundTask("deps-$currentSelectedId")
         _uiState.update { state ->
             val updated = state.tabs.map { tab ->
                 if (tab.id == currentSelectedId && (tab.engineState == EngineState.EXECUTING || tab.engineState == EngineState.COMPILING)) {

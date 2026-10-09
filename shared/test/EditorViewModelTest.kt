@@ -20,6 +20,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -318,5 +319,57 @@ class EditorViewModelTest {
         } finally {
             tempDir.deleteRecursively()
         }
+    }
+
+    @Test
+    fun `background task lifecycle and progress updates are tracked in uiState`() {
+        assertTrue(viewModel.uiState.value.backgroundTasks.isEmpty())
+        assertNull(viewModel.uiState.value.activeBackgroundTask)
+
+        // Add task 1 with indeterminate progress
+        viewModel.updateBackgroundTask(
+            id = "task-dl-1",
+            title = "Downloading com.google.code.gson:gson:2.10.1...",
+            progress = null
+        )
+        val stateWithOneTask = viewModel.uiState.value
+        assertEquals(1, stateWithOneTask.backgroundTasks.size)
+        assertEquals("task-dl-1", stateWithOneTask.activeBackgroundTask?.id)
+        assertEquals("Downloading com.google.code.gson:gson:2.10.1...", stateWithOneTask.activeBackgroundTask?.title)
+        assertNull(stateWithOneTask.activeBackgroundTask?.progress)
+        assertTrue(stateWithOneTask.activeBackgroundTask?.isIndeterminate == true)
+
+        // Update task 1 progress to 50%
+        viewModel.updateBackgroundTask(
+            id = "task-dl-1",
+            title = "Downloading gson-2.10.1.jar (140 / 283 KB)...",
+            progress = 0.5f
+        )
+        val stateUpdated = viewModel.uiState.value
+        assertEquals(1, stateUpdated.backgroundTasks.size)
+        assertEquals(0.5f, stateUpdated.activeBackgroundTask?.progress)
+        assertFalse(stateUpdated.activeBackgroundTask?.isIndeterminate == true)
+
+        // Add second task
+        viewModel.updateBackgroundTask(
+            id = "task-dl-2",
+            title = "Resolving POM dependencies...",
+            progress = null
+        )
+        val stateWithTwoTasks = viewModel.uiState.value
+        assertEquals(2, stateWithTwoTasks.backgroundTasks.size)
+        assertEquals("task-dl-1", stateWithTwoTasks.activeBackgroundTask?.id)
+
+        // Remove first task
+        viewModel.removeBackgroundTask("task-dl-1")
+        val stateAfterRemoveOne = viewModel.uiState.value
+        assertEquals(1, stateAfterRemoveOne.backgroundTasks.size)
+        assertEquals("task-dl-2", stateAfterRemoveOne.activeBackgroundTask?.id)
+
+        // Remove remaining task
+        viewModel.removeBackgroundTask("task-dl-2")
+        val stateEmpty = viewModel.uiState.value
+        assertTrue(stateEmpty.backgroundTasks.isEmpty())
+        assertNull(stateEmpty.activeBackgroundTask)
     }
 }

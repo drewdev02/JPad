@@ -37,14 +37,26 @@ class ExecutionEngine(
         (snippetRunner as? CancellableRunner)?.cancel()
     }
 
-    fun execute(userCode: String): ExecutionResponse {
+    fun extractDependencies(sourceCode: String): List<org.andrew.jpad.core.dependencies.MavenCoordinate> =
+        dependencyResolver.extractDependencies(sourceCode)
+
+    fun resolveDependencies(
+        coordinates: List<org.andrew.jpad.core.dependencies.MavenCoordinate>,
+        onProgress: ((description: String, progress: Float?) -> Unit)? = null
+    ): org.andrew.jpad.core.dependencies.ResolutionResult =
+        dependencyResolver.resolve(coordinates, onProgress = onProgress)
+
+    fun execute(
+        userCode: String,
+        onProgress: ((taskDescription: String, progress: Float?) -> Unit)? = null
+    ): ExecutionResponse {
         var durationMs = 0L
 
         val coordinates = dependencyResolver.extractDependencies(userCode)
         val classpathJars = if (coordinates.isNotEmpty()) {
             val resolutionResult: org.andrew.jpad.core.dependencies.ResolutionResult
             val resTime = measureTimeMillis {
-                resolutionResult = dependencyResolver.resolve(coordinates)
+                resolutionResult = dependencyResolver.resolve(coordinates, onProgress = onProgress)
             }
             durationMs += resTime
             if (!resolutionResult.isSuccess) {

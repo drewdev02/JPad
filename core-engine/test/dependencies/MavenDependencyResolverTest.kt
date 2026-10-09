@@ -118,7 +118,11 @@ class MavenDependencyResolverTest {
                 return listOf(MavenCoordinate("fail.group", "fail-artifact", "1.0.0"))
             }
 
-            override fun resolve(coordinates: List<MavenCoordinate>): ResolutionResult {
+            override fun resolve(
+                coordinates: List<MavenCoordinate>,
+                onProgress: ((description: String, progress: Float?) -> Unit)?
+            ): ResolutionResult {
+                onProgress?.invoke("Attempting to resolve fail-artifact...", 0.5f)
                 return ResolutionResult(isSuccess = false, errorMessage = "Connection timed out")
             }
         }
@@ -137,9 +141,45 @@ class MavenDependencyResolverTest {
             dependencyResolver = failingResolver
         )
 
-        val response = engine.execute("// @deps fail.group:fail-artifact:1.0.0\nSystem.out.println(1);")
+        val progressReports = mutableListOf<String>()
+        val response = engine.execute(
+            userCode = "// @deps fail.group:fail-artifact:1.0.0\nSystem.out.println(1);",
+            onProgress = { desc, _ -> progressReports.add(desc) }
+        )
         assertFalse(response.isSuccess)
         assertTrue(response.error.contains("Dependency resolution failed"))
         assertTrue(response.error.contains("Connection timed out"))
+        assertTrue(progressReports.isNotEmpty())
+        assertTrue(progressReports.any { it.contains("fail-artifact") })
+    }
+
+    @Test
+    fun `resolves dependencies reporting progress events`() {
+        val tempCache = Files.createTempDirectory("jpad_cache_progress_test").toFile()
+        try {
+            val coord = MavenCoordinate("org.test", "my-lib", "2.0.0")
+            val jarFile = File(tempCache, coord.relativeJarPath)
+            jarFile.parentFile.mkdirs()
+            jarFile.writeText("fake-jar")
+
+            val resolver = MavenDependencyResolver(
+                localCacheDir = tempCache,
+                m2RepoDir = File(tempCache, "no-m2"),
+                remoteRepos = emptyList()
+            )
+
+            val progressList = mutableListOf<Pair<String, Float?>>()
+            val result = resolver.resolve(listOf(coord)) { desc, prog ->
+                progressList.add(desc to prog)
+            }
+
+            assertTrue(result.isSuccess)
+            assertEquals(1, result.classpathJars.size)
+            assertTrue(progressList.isNotEmpty(), "Progress listener should receive events")
+            assertTrue(progressList.any { it.first.contains("Resolving") })
+            assertTrue(progressList.any { it.first.contains("Resolved") })
+        } finally {
+            tempCache.deleteRecursively()
+        }
     }
 }

@@ -44,7 +44,10 @@ data class ResolutionResult(
 
 interface DependencyResolver {
     fun extractDependencies(sourceCode: String): List<MavenCoordinate>
-    fun resolve(coordinates: List<MavenCoordinate>): ResolutionResult
+    fun resolve(
+        coordinates: List<MavenCoordinate>,
+        onProgress: ((description: String, progress: Float?) -> Unit)? = null
+    ): ResolutionResult
 }
 
 class MavenDependencyResolver(
@@ -75,15 +78,22 @@ class MavenDependencyResolver(
         return result.distinct()
     }
 
-    override fun resolve(coordinates: List<MavenCoordinate>): ResolutionResult {
+    override fun resolve(
+        coordinates: List<MavenCoordinate>,
+        onProgress: ((description: String, progress: Float?) -> Unit)?
+    ): ResolutionResult {
         if (coordinates.isEmpty()) {
             return ResolutionResult(isSuccess = true, classpathJars = emptyList())
         }
+
+        onProgress?.invoke("Resolving ${coordinates.size} dependencies...", 0f)
 
         val resolvedFiles = mutableListOf<File>()
         val visitedCoordinates = mutableSetOf<String>()
         val queue = ArrayDeque<MavenCoordinate>()
         queue.addAll(coordinates)
+
+        var processedCount = 0
 
         while (queue.isNotEmpty()) {
             val current = queue.removeFirst()
@@ -92,9 +102,13 @@ class MavenDependencyResolver(
                 continue
             }
 
+            processedCount++
+            val stepFraction = (processedCount.toFloat() / (processedCount + queue.size)).coerceIn(0.05f, 0.95f)
+            onProgress?.invoke("Resolving ${current.artifactId}:${current.version}...", stepFraction)
+
             // 1. Locate or download JAR
             val jarFile = try {
-                findOrDownloadArtifact(current.relativeJarPath)
+                findOrDownloadArtifact(current.relativeJarPath, onProgress)
             } catch (e: Exception) {
                 return ResolutionResult(
                     isSuccess = false,
@@ -113,7 +127,8 @@ class MavenDependencyResolver(
 
             // 2. Best-effort transitive dependencies from POM
             try {
-                val pomFile = findOrDownloadArtifact(current.relativePomPath)
+                onProgress?.invoke("Checking POM for ${current.artifactId}...", stepFraction)
+                val pomFile = findOrDownloadArtifact(current.relativePomPath, onProgress)
                 if (pomFile != null && pomFile.exists()) {
                     val transitive = parsePomDependencies(pomFile, current.version)
                     for (trans in transitive) {
@@ -127,19 +142,27 @@ class MavenDependencyResolver(
             }
         }
 
+        onProgress?.invoke("Resolved ${resolvedFiles.size} dependencies", 1.0f)
         return ResolutionResult(isSuccess = true, classpathJars = resolvedFiles.distinct())
     }
 
-    private fun findOrDownloadArtifact(relativePath: String): File? {
+    private fun findOrDownloadArtifact(
+        relativePath: String,
+        onProgress: ((description: String, progress: Float?) -> Unit)? = null
+    ): File? {
+        val fileName = relativePath.substringAfterLast('/')
+
         // Check ~/.m2/repository
         val inM2 = File(m2RepoDir, relativePath)
         if (inM2.exists() && inM2.length() > 0) {
+            onProgress?.invoke("Using cached $fileName", null)
             return inM2
         }
 
         // Check local cache ~/.jpad/cache/m2
         val inCache = File(localCacheDir, relativePath)
         if (inCache.exists() && inCache.length() > 0) {
+            onProgress?.invoke("Using cached $fileName", null)
             return inCache
         }
 
@@ -149,6 +172,7 @@ class MavenDependencyResolver(
             val url = URI.create("$baseUrl$relativePath")
 
             try {
+                onProgress?.invoke("Downloading $fileName...", null)
                 val request = HttpRequest.newBuilder(url)
                     .timeout(Duration.ofSeconds(15))
                     .GET()
@@ -156,11 +180,30 @@ class MavenDependencyResolver(
 
                 val response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream())
                 if (response.statusCode() == 200) {
+                    val contentLength = response.headers().firstValueAsLong("Content-Length").orElse(-1L)
                     inCache.parentFile?.mkdirs()
                     val tempFile = File.createTempFile("jpad_dl_", ".tmp", inCache.parentFile)
+                    
                     response.body().use { input ->
                         FileOutputStream(tempFile).use { output ->
-                            input.copyTo(output)
+                            val buffer = ByteArray(8192)
+                            var bytesRead = 0L
+                            var n: Int
+                            var lastReportTime = 0L
+                            while (input.read(buffer).also { n = it } != -1) {
+                                output.write(buffer, 0, n)
+                                bytesRead += n
+                                val now = System.currentTimeMillis()
+                                if (now - lastReportTime >= 50 || (contentLength > 0 && bytesRead == contentLength)) {
+                                    lastReportTime = now
+                                    val fraction = if (contentLength > 0) {
+                                        (bytesRead.toFloat() / contentLength).coerceIn(0f, 1f)
+                                    } else null
+                                    val downloadedKb = bytesRead / 1024
+                                    val totalKbText = if (contentLength > 0) " / ${contentLength / 1024} KB" else " KB"
+                                    onProgress?.invoke("Downloading $fileName ($downloadedKb$totalKbText)...", fraction)
+                                }
+                            }
                         }
                     }
                     if (tempFile.length() > 0) {

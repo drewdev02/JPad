@@ -359,7 +359,8 @@ fun AppContent(
                         statusMessage = state.statusMessage,
                         executionTimeMs = state.executionTimeMs,
                         cursorPosition = state.cursorPosition,
-                        memoryUsageMb = state.memoryUsageMb
+                        memoryUsageMb = state.memoryUsageMb,
+                        backgroundTasks = state.backgroundTasks
                     )
                 }
             )
