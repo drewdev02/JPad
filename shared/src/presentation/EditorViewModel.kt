@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.andrew.jpad.core.ExecutionEngine
+import org.andrew.jpad.core.compiler.CompilationDiagnostic
 import org.andrew.jpad.core.dump.DumpValue
 import org.andrew.jpad.ui.components.EngineState
 import org.andrew.jpad.ui.components.QueryTabItem
@@ -27,6 +28,7 @@ data class QueryTabSession(
     val cursorPosition: Pair<Int, Int>? = Pair(1, 1),
     val consoleOutput: String = "",
     val dumpResults: List<DumpValue> = emptyList(),
+    val diagnostics: List<CompilationDiagnostic> = emptyList(),
     val executionTimeMs: Long? = null,
     val engineState: EngineState = EngineState.READY,
     val statusMessage: String = "Ready"
@@ -92,6 +94,7 @@ System.out.println("Connecting to database...");
 data class EditorUiState(
     val tabs: List<QueryTabSession> = DEFAULT_TABS,
     val selectedTabId: String = "1",
+    val targetCursorPosition: Pair<Int, Int>? = null,
     val memoryUsageMb: Long? = 54
 ) {
     val activeTab: QueryTabSession
@@ -105,6 +108,7 @@ data class EditorUiState(
     val consoleOutput: String get() = activeTab.consoleOutput
     val dumpResult: DumpValue? get() = activeTab.dumpResults.lastOrNull()
     val dumpResults: List<DumpValue> get() = activeTab.dumpResults
+    val diagnostics: List<CompilationDiagnostic> get() = activeTab.diagnostics
     val cursorPosition: Pair<Int, Int>? get() = activeTab.cursorPosition
     val isRunning: Boolean get() = engineState == EngineState.COMPILING || engineState == EngineState.EXECUTING
 
@@ -132,7 +136,7 @@ class EditorViewModel(
                     tab
                 }
             }
-            state.copy(tabs = updatedTabs)
+            state.copy(tabs = updatedTabs, targetCursorPosition = null)
         }
     }
 
@@ -233,6 +237,7 @@ class EditorViewModel(
                                 statusMessage = "Execution completed successfully",
                                 consoleOutput = response.output,
                                 dumpResults = if (response.dumps.isNotEmpty()) response.dumps else tab.dumpResults,
+                                diagnostics = response.diagnostics,
                                 executionTimeMs = response.durationMs
                             )
                         } else {
@@ -241,6 +246,8 @@ class EditorViewModel(
                                 engineState = EngineState.ERROR,
                                 statusMessage = "Execution failed",
                                 consoleOutput = errorDetails,
+                                dumpResults = if (response.dumps.isNotEmpty()) response.dumps else tab.dumpResults,
+                                diagnostics = response.diagnostics,
                                 executionTimeMs = response.durationMs
                             )
                         }
@@ -323,5 +330,46 @@ class EditorViewModel(
             }
         }
         return true
+    }
+
+    fun onNavigateToPosition(line: Int, col: Int) {
+        _uiState.update { it.copy(targetCursorPosition = Pair(line, col)) }
+    }
+
+    fun onOpenFileDialog() {
+        val chosen = showNativeOpenFileDialog() ?: return
+        openFile(chosen)
+    }
+
+    fun onSaveAsDialog() {
+        val active = _uiState.value.activeTab
+        val chosen = showNativeSaveFileDialog(defaultName = active.title) ?: return
+        saveCurrentTab(chosen)
+    }
+}
+
+internal fun showNativeOpenFileDialog(title: String = "Open Java Scratchpad"): String? {
+    return try {
+        val dialog = java.awt.FileDialog(null as java.awt.Frame?, title, java.awt.FileDialog.LOAD)
+        dialog.setFilenameFilter { _, name -> name.endsWith(".java") || name.endsWith(".jpad") }
+        dialog.isVisible = true
+        val file = dialog.file ?: return null
+        val dir = dialog.directory ?: return null
+        java.io.File(dir, file).absolutePath
+    } catch (_: Throwable) {
+        null
+    }
+}
+
+internal fun showNativeSaveFileDialog(defaultName: String = "Scratchpad.java", title: String = "Save Scratchpad As"): String? {
+    return try {
+        val dialog = java.awt.FileDialog(null as java.awt.Frame?, title, java.awt.FileDialog.SAVE)
+        dialog.file = defaultName
+        dialog.isVisible = true
+        val file = dialog.file ?: return null
+        val dir = dialog.directory ?: return null
+        java.io.File(dir, file).absolutePath
+    } catch (_: Throwable) {
+        null
     }
 }

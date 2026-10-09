@@ -122,4 +122,21 @@ class JavaSyntaxHighlighterTest {
         // On second line after "    int" (offset 27) -> Ln 2, Col 8
         assertEquals(Pair(2, 8), calculateCursorPosition(text, 27))
     }
+
+    @Test
+    fun `calculates selection offset correctly from line and column`() {
+        val text = "public class Main {\n    int x = 10;\n}"
+        
+        // Ln 1, Col 1 -> offset 0
+        assertEquals(0, calculateSelectionOffset(text, 1, 1))
+
+        // Ln 1, Col 8 -> offset 7
+        assertEquals(7, calculateSelectionOffset(text, 1, 8))
+
+        // Ln 2, Col 1 -> offset 20
+        assertEquals(20, calculateSelectionOffset(text, 2, 1))
+
+        // Ln 2, Col 8 -> offset 27
+        assertEquals(27, calculateSelectionOffset(text, 2, 8))
+    }
 }

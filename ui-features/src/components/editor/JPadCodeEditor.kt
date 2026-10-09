@@ -38,11 +38,24 @@ fun calculateCursorPosition(text: String, selectionOffset: Int): Pair<Int, Int> 
     return Pair(line, col)
 }
 
+fun calculateSelectionOffset(text: String, line: Int, col: Int): Int {
+    if (text.isEmpty() || (line <= 1 && col <= 1)) return 0
+    val lines = text.split('\n')
+    val targetLineIdx = (line - 1).coerceIn(0, lines.size - 1)
+    var offset = 0
+    for (i in 0 until targetLineIdx) {
+        offset += lines[i].length + 1
+    }
+    val targetColIdx = (col - 1).coerceIn(0, lines[targetLineIdx].length)
+    return (offset + targetColIdx).coerceIn(0, text.length)
+}
+
 @Composable
 fun JPadCodeEditor(
     value: String,
     onValueChange: (String) -> Unit,
     onCursorPositionChange: ((line: Int, col: Int) -> Unit)? = null,
+    targetCursorPosition: Pair<Int, Int>? = null,
     modifier: Modifier = Modifier,
     readOnly: Boolean = false
 ) {
@@ -55,6 +68,15 @@ fun JPadCodeEditor(
         if (value != textFieldValue.text) {
             val newSelection = textFieldValue.selection.coerceIn(0, value.length)
             textFieldValue = textFieldValue.copy(text = value, selection = newSelection)
+        }
+    }
+
+    // Move cursor to target position when requested (e.g. from clicking a diagnostic in Problems panel)
+    LaunchedEffect(targetCursorPosition) {
+        targetCursorPosition?.let { (line, col) ->
+            val offset = calculateSelectionOffset(value, line, col)
+            textFieldValue = textFieldValue.copy(selection = TextRange(offset))
+            onCursorPositionChange?.invoke(line, col)
         }
     }
 

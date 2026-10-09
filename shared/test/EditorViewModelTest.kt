@@ -212,4 +212,26 @@ class EditorViewModelTest {
         assertEquals("int openedValue = 99;", activeAfterOpen.code)
         assertEquals(anotherFile.name, activeAfterOpen.title)
     }
+
+    @Test
+    fun `onExecute with compilation error populates diagnostics in uiState`() = runTest(testDispatcher) {
+        viewModel.onCodeChanged("""int a = "type mismatch";""")
+        viewModel.onExecute()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(EngineState.ERROR, state.engineState)
+        assertTrue(state.diagnostics.isNotEmpty(), "Expected compilation diagnostics")
+        val diag = state.diagnostics.first()
+        assertTrue(diag.message.isNotBlank())
+    }
+
+    @Test
+    fun `onNavigateToPosition sets targetCursorPosition and onCodeChanged clears it`() {
+        viewModel.onNavigateToPosition(5, 12)
+        assertEquals(Pair(5, 12), viewModel.uiState.value.targetCursorPosition)
+
+        viewModel.onCodeChanged("String s = \"reset\";")
+        assertEquals(null, viewModel.uiState.value.targetCursorPosition)
+    }
 }

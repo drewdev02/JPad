@@ -36,6 +36,7 @@ fun JPadToolbar(
     onStopClick: () -> Unit,
     isRunning: Boolean,
     onSaveClick: (() -> Unit)? = null,
+    onOpenClick: (() -> Unit)? = null,
     onNewQueryClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -74,6 +75,18 @@ fun JPadToolbar(
                 Text("■", style = JPadTheme.typography.uiSmall.copy(color = colors.stopRed))
             }
         )
+
+        onOpenClick?.let { onOpen ->
+            JPadToolbarButton(
+                onClick = onOpen,
+                text = "Open",
+                shortcut = "Ctrl+O",
+                style = JPadButtonStyle.DEFAULT,
+                icon = {
+                    Text("📂", style = JPadTheme.typography.uiSmall)
+                }
+            )
+        }
 
         onSaveClick?.let { onSave ->
             JPadToolbarButton(

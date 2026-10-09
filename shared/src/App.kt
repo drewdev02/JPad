@@ -47,6 +47,7 @@ import org.andrew.jpad.ui.components.JPadWorkspaceLayout
 import org.andrew.jpad.ui.components.ScriptLanguageMode
 import org.andrew.jpad.ui.components.editor.JPadCodeEditor
 import org.andrew.jpad.ui.components.grid.JPadMultiDumpViewer
+import org.andrew.jpad.ui.components.results.JPadProblemsViewer
 import org.andrew.jpad.ui.theme.JPadTheme
 import org.jetbrains.compose.reload.DevelopmentEntryPoint
 import org.koin.compose.viewmodel.koinViewModel
@@ -68,13 +69,17 @@ fun App(
         onNewTab = viewModel::onNewTab,
         onExecute = viewModel::onExecute,
         onStop = viewModel::onStop,
-        onSave = { viewModel.saveCurrentTab() }
+        onSave = { viewModel.saveCurrentTab() },
+        onSaveAs = viewModel::onSaveAsDialog,
+        onOpen = viewModel::onOpenFileDialog,
+        onSelectProblem = viewModel::onNavigateToPosition
     )
 }
 
 enum class ResultViewTab {
     RESULTS_DUMP,
-    CONSOLE_OUTPUT
+    CONSOLE_OUTPUT,
+    PROBLEMS
 }
 
 @Composable
@@ -88,7 +93,10 @@ fun AppContent(
     onNewTab: () -> Unit,
     onExecute: () -> Unit,
     onStop: () -> Unit,
-    onSave: () -> Unit = {}
+    onSave: () -> Unit = {},
+    onSaveAs: () -> Unit = {},
+    onOpen: () -> Unit = {},
+    onSelectProblem: (line: Int, col: Int) -> Unit = { _, _ -> }
 ) {
     var activeResultTab by remember { mutableStateOf(ResultViewTab.CONSOLE_OUTPUT) }
 
@@ -96,6 +104,13 @@ fun AppContent(
     LaunchedEffect(state.dumpResults) {
         if (state.dumpResults.isNotEmpty()) {
             activeResultTab = ResultViewTab.RESULTS_DUMP
+        }
+    }
+
+    // Auto-switch to Problems tab if execution failed with diagnostics
+    LaunchedEffect(state.diagnostics, state.engineState) {
+        if (state.diagnostics.isNotEmpty() && state.engineState == EngineState.ERROR) {
+            activeResultTab = ResultViewTab.PROBLEMS
         }
     }
 
@@ -138,8 +153,16 @@ fun AppContent(
                         onTabClosed(state.selectedTabId)
                         true
                     }
+                    isModifierDown && event.isShiftPressed && event.key == Key.S -> {
+                        onSaveAs()
+                        true
+                    }
                     isModifierDown && event.key == Key.S -> {
                         onSave()
+                        true
+                    }
+                    isModifierDown && event.key == Key.O -> {
+                        onOpen()
                         true
                     }
                     else -> false
@@ -155,6 +178,7 @@ fun AppContent(
                         onRunClick = onExecute,
                         onStopClick = onStop,
                         isRunning = state.isRunning,
+                        onOpenClick = onOpen,
                         onSaveClick = onSave,
                         onNewQueryClick = onNewTab
                     )
@@ -207,6 +231,7 @@ fun AppContent(
                             value = state.code,
                             onValueChange = onCodeChanged,
                             onCursorPositionChange = onCursorPositionChanged,
+                            targetCursorPosition = state.targetCursorPosition,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -217,7 +242,7 @@ fun AppContent(
                             .fillMaxSize()
                             .background(JPadTheme.colors.backgroundSurface)
                     ) {
-                        // Result tabs (Dump vs Console)
+                        // Result tabs (Dump vs Console vs Problems)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -246,6 +271,26 @@ fun AppContent(
                                 ),
                                 modifier = Modifier
                                     .clickable { activeResultTab = ResultViewTab.RESULTS_DUMP }
+                                    .padding(vertical = 2.dp, horizontal = 4.dp)
+                            )
+
+                            val problemsCount = state.diagnostics.size
+                            val hasProblems = problemsCount > 0
+                            val problemsColor = if (activeResultTab == ResultViewTab.PROBLEMS) {
+                                JPadTheme.colors.accentPrimary
+                            } else if (hasProblems) {
+                                JPadTheme.colors.errorRed
+                            } else {
+                                JPadTheme.colors.textSecondary
+                            }
+                            Text(
+                                text = if (hasProblems) "Problems ($problemsCount)" else "Problems",
+                                style = JPadTheme.typography.uiSmall.copy(
+                                    color = problemsColor,
+                                    fontWeight = if (activeResultTab == ResultViewTab.PROBLEMS) FontWeight.Bold else FontWeight.Normal
+                                ),
+                                modifier = Modifier
+                                    .clickable { activeResultTab = ResultViewTab.PROBLEMS }
                                     .padding(vertical = 2.dp, horizontal = 4.dp)
                             )
                         }
@@ -278,6 +323,13 @@ fun AppContent(
                                 ResultViewTab.RESULTS_DUMP -> {
                                     JPadMultiDumpViewer(
                                         dumps = state.dumpResults,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                                ResultViewTab.PROBLEMS -> {
+                                    JPadProblemsViewer(
+                                        diagnostics = state.diagnostics,
+                                        onSelectProblem = onSelectProblem,
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 }
