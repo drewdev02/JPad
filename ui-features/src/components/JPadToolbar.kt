@@ -25,7 +25,8 @@ import org.andrew.jpad.ui.theme.JPadTheme
 enum class ScriptLanguageMode(val displayName: String) {
     JAVA_STATEMENTS("Java Statement(s)"),
     JAVA_PROGRAM("Java Program / Class"),
-    JAVA_EXPRESSION("Java Expression")
+    JAVA_EXPRESSION("Java Expression"),
+    SQL("SQL Query")
 }
 
 @Composable

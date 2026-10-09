@@ -2,6 +2,7 @@ product: jvm/lib
 
 dependencies:
   - $libs.koin.core
+  - $libs.sqlite.jdbc
 
 test-dependencies:
   - $libs.koin.test

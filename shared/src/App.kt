@@ -47,9 +47,13 @@ import org.andrew.jpad.ui.components.JPadToolbar
 import org.andrew.jpad.ui.components.JPadWorkspaceLayout
 import org.andrew.jpad.ui.components.ScriptLanguageMode
 import org.andrew.jpad.ui.components.editor.JPadCodeEditor
+import org.andrew.jpad.core.database.DatabaseConnectionConfig
 import org.andrew.jpad.ui.components.grid.JPadMultiDumpViewer
 import org.andrew.jpad.ui.components.results.JPadProblemsViewer
+import org.andrew.jpad.ui.components.sidebar.JPadDatabaseExplorer
 import org.andrew.jpad.ui.components.sidebar.JPadFileExplorer
+import org.andrew.jpad.ui.components.sidebar.JPadSidebarPanel
+import org.andrew.jpad.ui.components.sidebar.SidebarTab
 import org.andrew.jpad.ui.theme.JPadTheme
 import org.jetbrains.compose.reload.DevelopmentEntryPoint
 import org.koin.compose.koinInject
@@ -85,7 +89,13 @@ fun App(
         onRefreshWorkspace = viewModel::refreshWorkspace,
         onStartCreatingFile = viewModel::startCreatingFile,
         onCancelCreatingFile = viewModel::cancelCreatingFile,
-        onConfirmCreateFile = viewModel::createFileInWorkspace
+        onConfirmCreateFile = viewModel::createFileInWorkspace,
+        onSidebarTabSelected = viewModel::onSidebarTabSelected,
+        onSelectDatabaseConnection = viewModel::onSelectDatabaseConnection,
+        onQueryDatabaseTable = viewModel::onQueryDatabaseTable,
+        onAddDatabaseConnection = viewModel::onAddDatabaseConnection,
+        onRefreshDatabases = viewModel::onRefreshDatabases,
+        onTestDatabaseConnection = viewModel::testDatabaseConnection
     )
 }
 
@@ -118,7 +128,13 @@ fun AppContent(
     onRefreshWorkspace: () -> Unit = {},
     onStartCreatingFile: () -> Unit = {},
     onCancelCreatingFile: () -> Unit = {},
-    onConfirmCreateFile: (String) -> Unit = {}
+    onConfirmCreateFile: (String) -> Unit = {},
+    onSidebarTabSelected: (SidebarTab) -> Unit = {},
+    onSelectDatabaseConnection: (String) -> Unit = {},
+    onQueryDatabaseTable: (connectionId: String, tableName: String) -> Unit = { _, _ -> },
+    onAddDatabaseConnection: (DatabaseConnectionConfig) -> Unit = {},
+    onRefreshDatabases: () -> Unit = {},
+    onTestDatabaseConnection: (DatabaseConnectionConfig) -> Result<Unit> = { Result.success(Unit) }
 ) {
     var activeResultTab by remember { mutableStateOf(ResultViewTab.CONSOLE_OUTPUT) }
 
@@ -222,21 +238,39 @@ fun AppContent(
                 },
                 sidebar = if (state.isSidebarVisible) {
                     {
-                        JPadFileExplorer(
-                            workspaceDirectory = state.workspaceDirectory,
-                            items = state.explorerItems,
-                            openScripts = state.openScripts,
-                            isCreatingFile = state.isCreatingFile,
-                            onFileSelected = onFileOpen,
-                            onScriptSelected = onTabSelected,
-                            onScriptClosed = onTabClosed,
-                            onToggleDirectory = onToggleDirectory,
-                            onOpenFolderClick = onOpenFolderDialog,
-                            onRefreshClick = onRefreshWorkspace,
-                            onNewFileClick = onStartCreatingFile,
-                            onConfirmCreateFile = onConfirmCreateFile,
-                            onCancelCreateFile = onCancelCreatingFile,
-                            onCollapseSidebar = onToggleSidebar
+                        JPadSidebarPanel(
+                            selectedTab = state.activeSidebarTab,
+                            onTabSelected = onSidebarTabSelected,
+                            filesContent = {
+                                JPadFileExplorer(
+                                    workspaceDirectory = state.workspaceDirectory,
+                                    items = state.explorerItems,
+                                    openScripts = state.openScripts,
+                                    isCreatingFile = state.isCreatingFile,
+                                    onFileSelected = onFileOpen,
+                                    onScriptSelected = onTabSelected,
+                                    onScriptClosed = onTabClosed,
+                                    onToggleDirectory = onToggleDirectory,
+                                    onOpenFolderClick = onOpenFolderDialog,
+                                    onRefreshClick = onRefreshWorkspace,
+                                    onNewFileClick = onStartCreatingFile,
+                                    onConfirmCreateFile = onConfirmCreateFile,
+                                    onCancelCreateFile = onCancelCreatingFile,
+                                    onCollapseSidebar = onToggleSidebar
+                                )
+                            },
+                            databasesContent = {
+                                JPadDatabaseExplorer(
+                                    connections = state.databaseConnections,
+                                    schemas = state.databaseSchemas,
+                                    selectedConnectionId = state.selectedConnectionId,
+                                    onSelectConnection = onSelectDatabaseConnection,
+                                    onQueryTable = onQueryDatabaseTable,
+                                    onAddConnection = onAddDatabaseConnection,
+                                    onRefresh = onRefreshDatabases,
+                                    onTestConnection = onTestDatabaseConnection
+                                )
+                            }
                         )
                     }
                 } else null,

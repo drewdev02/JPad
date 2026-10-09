@@ -33,5 +33,6 @@ val coreEngineModule = module {
     single { WorkerSupervisor() }
     singleOf(::RemoteScriptRunner) { bind<ScriptRunner>() }
     singleOf(::RemoteSnippetRunner) { bind<SnippetRunner>() }
+    single { org.andrew.jpad.core.database.DatabaseService() }
     singleOf(::ExecutionEngine)
 }

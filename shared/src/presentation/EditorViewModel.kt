@@ -14,12 +14,16 @@ import kotlinx.coroutines.launch
 import org.andrew.jpad.core.ExecutionEngine
 import org.andrew.jpad.core.compiler.CompilationDiagnostic
 import org.andrew.jpad.core.dump.DumpValue
+import org.andrew.jpad.core.database.DatabaseConnectionConfig
+import org.andrew.jpad.core.database.DatabaseService
+import org.andrew.jpad.core.database.DatabaseTableMeta
 import org.andrew.jpad.ui.components.BackgroundTask
 import org.andrew.jpad.ui.components.EngineState
 import org.andrew.jpad.ui.components.QueryTabItem
 import org.andrew.jpad.ui.components.ScriptLanguageMode
 import org.andrew.jpad.ui.components.sidebar.FileExplorerItem
 import org.andrew.jpad.ui.components.sidebar.OpenScriptItem
+import org.andrew.jpad.ui.components.sidebar.SidebarTab
 import org.andrew.jpad.ui.components.sidebar.buildVisibleFileTree
 import java.io.File
 
@@ -106,7 +110,11 @@ data class EditorUiState(
     val expandedDirectories: Set<String> = emptySet(),
     val isCreatingFile: Boolean = false,
     val explorerItems: List<FileExplorerItem> = emptyList(),
-    val backgroundTasks: List<BackgroundTask> = emptyList()
+    val backgroundTasks: List<BackgroundTask> = emptyList(),
+    val activeSidebarTab: SidebarTab = SidebarTab.FILES,
+    val databaseConnections: List<DatabaseConnectionConfig> = emptyList(),
+    val selectedConnectionId: String? = null,
+    val databaseSchemas: Map<String, List<DatabaseTableMeta>> = emptyMap()
 ) {
     val activeBackgroundTask: BackgroundTask?
         get() = backgroundTasks.firstOrNull()
@@ -135,6 +143,7 @@ data class EditorUiState(
 
 class EditorViewModel(
     private val executionEngine: ExecutionEngine,
+    private val databaseService: DatabaseService = DatabaseService(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default
 ) : ViewModel() {
 
@@ -151,6 +160,23 @@ class EditorViewModel(
             }
         } catch (_: Exception) {}
         refreshWorkspace()
+        initDatabases()
+    }
+
+    private fun initDatabases() {
+        viewModelScope.launch(dispatcher) {
+            try {
+                val sampleConfig = databaseService.getOrCreateSampleDatabase()
+                val schema = databaseService.getSchema(sampleConfig)
+                _uiState.update { state ->
+                    state.copy(
+                        databaseConnections = listOf(sampleConfig),
+                        selectedConnectionId = sampleConfig.id,
+                        databaseSchemas = mapOf(sampleConfig.id to schema)
+                    )
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     fun onCodeChanged(newCode: String) {
@@ -279,6 +305,66 @@ class EditorViewModel(
         }
     }
 
+    fun onSidebarTabSelected(tab: SidebarTab) {
+        _uiState.update { it.copy(activeSidebarTab = tab) }
+    }
+
+    fun onSelectDatabaseConnection(connectionId: String) {
+        _uiState.update { it.copy(selectedConnectionId = connectionId) }
+    }
+
+    fun onAddDatabaseConnection(config: DatabaseConnectionConfig) {
+        viewModelScope.launch(dispatcher) {
+            val schema = databaseService.getSchema(config)
+            _uiState.update { state ->
+                val updatedConns = state.databaseConnections.filterNot { it.id == config.id } + config
+                val updatedSchemas = state.databaseSchemas + (config.id to schema)
+                state.copy(
+                    databaseConnections = updatedConns,
+                    selectedConnectionId = config.id,
+                    databaseSchemas = updatedSchemas
+                )
+            }
+        }
+    }
+
+    fun onRefreshDatabases() {
+        viewModelScope.launch(dispatcher) {
+            val currentConns = _uiState.value.databaseConnections
+            val newSchemas = currentConns.associate { conn ->
+                conn.id to databaseService.getSchema(conn)
+            }
+            _uiState.update { it.copy(databaseSchemas = newSchemas) }
+        }
+    }
+
+    fun testDatabaseConnection(config: DatabaseConnectionConfig): Result<Unit> {
+        return databaseService.testConnection(config)
+    }
+
+    fun onQueryDatabaseTable(connectionId: String, tableName: String) {
+        val newId = System.currentTimeMillis().toString()
+        val queryTitle = "$tableName.sql"
+        val queryCode = """-- Querying table: $tableName
+SELECT * FROM $tableName LIMIT 50;
+"""
+        val newTab = QueryTabSession(
+            id = newId,
+            title = queryTitle,
+            code = queryCode,
+            languageMode = ScriptLanguageMode.SQL,
+            isModified = false
+        )
+        _uiState.update { state ->
+            val next = state.copy(
+                tabs = state.tabs + newTab,
+                selectedTabId = newId,
+                selectedConnectionId = connectionId
+            )
+            next.copy(explorerItems = updateExplorerSelection(next))
+        }
+    }
+
     fun onExecute() {
         val active = _uiState.value.activeTab
         if (_uiState.value.isRunning) return
@@ -289,13 +375,71 @@ class EditorViewModel(
                 if (tab.id == targetTabId) {
                     tab.copy(
                         engineState = EngineState.EXECUTING,
-                        statusMessage = "Compiling & executing...",
+                        statusMessage = if (active.languageMode == ScriptLanguageMode.SQL) "Executing SQL query..." else "Compiling & executing...",
                         consoleOutput = "",
                         executionTimeMs = null
                     )
                 } else tab
             }
             state.copy(tabs = updated)
+        }
+
+        // Direct SQL query execution
+        if (active.languageMode == ScriptLanguageMode.SQL) {
+            executionJob = viewModelScope.launch(dispatcher) {
+                val connId = _uiState.value.selectedConnectionId
+                val connConfig = _uiState.value.databaseConnections.firstOrNull { it.id == connId }
+                    ?: _uiState.value.databaseConnections.firstOrNull()
+
+                if (connConfig == null) {
+                    _uiState.update { state ->
+                        val updated = state.tabs.map { tab ->
+                            if (tab.id == targetTabId) {
+                                tab.copy(
+                                    engineState = EngineState.ERROR,
+                                    statusMessage = "No database connection selected",
+                                    consoleOutput = "Error: Please configure or select a database connection in the Databases explorer."
+                                )
+                            } else tab
+                        }
+                        state.copy(tabs = updated)
+                    }
+                    return@launch
+                }
+
+                val queryResult = databaseService.executeQuery(connConfig, active.code)
+                if (!isActive) return@launch
+
+                _uiState.update { state ->
+                    val updated = state.tabs.map { tab ->
+                        if (tab.id == targetTabId) {
+                            if (queryResult.isSuccess) {
+                                val outputMsg = if (queryResult.affectedRows != null) {
+                                    "Query executed successfully: ${queryResult.affectedRows} row(s) affected."
+                                } else {
+                                    "Query completed: ${queryResult.table?.rows?.size ?: 0} rows retrieved."
+                                }
+                                tab.copy(
+                                    engineState = EngineState.SUCCESS,
+                                    statusMessage = "SQL Query completed successfully",
+                                    consoleOutput = outputMsg,
+                                    dumpResults = listOfNotNull(queryResult.table),
+                                    executionTimeMs = queryResult.executionTimeMs
+                                )
+                            } else {
+                                tab.copy(
+                                    engineState = EngineState.ERROR,
+                                    statusMessage = "SQL execution failed",
+                                    consoleOutput = "SQL Error:\n${queryResult.errorMessage ?: "Unknown error"}",
+                                    executionTimeMs = queryResult.executionTimeMs
+                                )
+                            }
+                        } else tab
+                    }
+                    state.copy(tabs = updated)
+                }
+            }
+            return
         }
 
         executionJob = viewModelScope.launch(dispatcher) {

@@ -372,4 +372,54 @@ class EditorViewModelTest {
         assertTrue(stateEmpty.backgroundTasks.isEmpty())
         assertNull(stateEmpty.activeBackgroundTask)
     }
+
+    @Test
+    fun `initializes sample database connection and schemas`() = runTest(testDispatcher) {
+        advanceUntilIdle()
+        val state = viewModel.uiState.value
+        assertTrue(state.databaseConnections.isNotEmpty(), "Sample database connection should be initialized")
+        val sampleConn = state.databaseConnections.first()
+        assertEquals("sample-sqlite", sampleConn.id)
+        assertEquals(sampleConn.id, state.selectedConnectionId)
+
+        val schemas = state.databaseSchemas[sampleConn.id]
+        assertNotNull(schemas)
+        assertTrue(schemas.any { it.name.equals("customers", ignoreCase = true) })
+        assertTrue(schemas.any { it.name.equals("orders", ignoreCase = true) })
+    }
+
+    @Test
+    fun `onQueryDatabaseTable creates new SQL tab`() = runTest(testDispatcher) {
+        advanceUntilIdle()
+        val initialTabsCount = viewModel.uiState.value.tabs.size
+
+        viewModel.onQueryDatabaseTable("sample-sqlite", "customers")
+        val state = viewModel.uiState.value
+        assertEquals(initialTabsCount + 1, state.tabs.size)
+
+        val active = state.activeTab
+        assertEquals("customers.sql", active.title)
+        assertEquals(ScriptLanguageMode.SQL, active.languageMode)
+        assertTrue(active.code.contains("SELECT * FROM customers"))
+    }
+
+    @Test
+    fun `onExecute with SQL query executes against database and populates dump results`() = runTest(testDispatcher) {
+        advanceUntilIdle()
+
+        viewModel.onQueryDatabaseTable("sample-sqlite", "customers")
+        viewModel.onCodeChanged("SELECT id, name, country FROM customers WHERE country = 'USA';")
+        viewModel.onExecute()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(EngineState.SUCCESS, state.engineState)
+        assertEquals(1, state.dumpResults.size)
+        val table = state.dumpResults[0]
+        assertIs<DumpValue.Table>(table)
+        assertEquals(listOf("id", "name", "country"), table.columns)
+        assertEquals(1, table.rows.size)
+        val firstRow = table.rows[0]
+        assertEquals("Grace Hopper", (firstRow["name"] as? DumpValue.Primitive)?.rawValue)
+    }
 }
