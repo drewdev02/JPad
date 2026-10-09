@@ -422,4 +422,66 @@ class EditorViewModelTest {
         val firstRow = table.rows[0]
         assertEquals("Grace Hopper", (firstRow["name"] as? DumpValue.Primitive)?.rawValue)
     }
+
+    @Test
+    fun `onExecute records snapshot to execution history`() = runTest(testDispatcher) {
+        advanceUntilIdle()
+        viewModel.onCodeChanged("int x = 42; System.out.println(x);")
+        viewModel.onExecute()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.executionHistory.isNotEmpty(), "Execution history should have recorded a snapshot")
+        val latest = state.executionHistory.first()
+        assertTrue(latest.code.contains("int x = 42;"))
+        assertEquals("SUCCESS", latest.status)
+    }
+
+    @Test
+    fun `onRestoreHistorySnapshot restores code and language mode`() = runTest(testDispatcher) {
+        val snapshot = org.andrew.jpad.history.ExecutionSnapshot(
+            tabTitle = "OldTab",
+            languageMode = "SQL",
+            code = "SELECT 1;",
+            status = "SUCCESS",
+            durationMs = 5L
+        )
+
+        viewModel.onRestoreHistorySnapshot(snapshot)
+        val state = viewModel.uiState.value
+        assertEquals("SELECT 1;", state.code)
+        assertEquals(ScriptLanguageMode.SQL, state.languageMode)
+        assertTrue(state.activeTab.isModified)
+        assertNull(state.diffSnapshot)
+    }
+
+    @Test
+    fun `onOpenDiffViewer and onCloseDiffViewer control diff modal`() {
+        val snapshot = org.andrew.jpad.history.ExecutionSnapshot(
+            tabTitle = "DiffTest",
+            languageMode = "JAVA_STATEMENTS",
+            code = "int a = 1;",
+            status = "SUCCESS",
+            durationMs = 10L
+        )
+
+        viewModel.onOpenDiffViewer(snapshot)
+        assertEquals(snapshot, viewModel.uiState.value.diffSnapshot)
+
+        viewModel.onCloseDiffViewer()
+        assertNull(viewModel.uiState.value.diffSnapshot)
+    }
+
+    @Test
+    fun `onToggleHistoryTab activates history tab and toggles sidebar`() {
+        viewModel.onToggleHistoryTab()
+        val state1 = viewModel.uiState.value
+        assertTrue(state1.isSidebarVisible)
+        assertEquals(org.andrew.jpad.ui.components.sidebar.SidebarTab.HISTORY, state1.activeSidebarTab)
+
+        viewModel.onToggleHistoryTab()
+        val state2 = viewModel.uiState.value
+        assertFalse(state2.isSidebarVisible)
+    }
 }
+

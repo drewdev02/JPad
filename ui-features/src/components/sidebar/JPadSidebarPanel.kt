@@ -18,7 +18,8 @@ import org.andrew.jpad.ui.theme.JPadTheme
 
 enum class SidebarTab(val title: String, val icon: String) {
     FILES("Files", "📁"),
-    DATABASES("Databases", "⚡")
+    DATABASES("Databases", "⚡"),
+    HISTORY("History", "🕒")
 }
 
 @Composable
@@ -27,6 +28,7 @@ fun JPadSidebarPanel(
     onTabSelected: (SidebarTab) -> Unit,
     filesContent: @Composable () -> Unit,
     databasesContent: @Composable () -> Unit,
+    historyContent: @Composable () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val colors = JPadTheme.colors
@@ -36,7 +38,7 @@ fun JPadSidebarPanel(
             .fillMaxSize()
             .background(colors.backgroundSidebar)
     ) {
-        // Top Tab Switcher: [ 📁 Files ]  [ ⚡ Databases ]
+        // Top Tab Switcher: [ 📁 Files ]  [ ⚡ Databases ]  [ 🕒 History ]
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -69,6 +71,7 @@ fun JPadSidebarPanel(
             when (selectedTab) {
                 SidebarTab.FILES -> filesContent()
                 SidebarTab.DATABASES -> databasesContent()
+                SidebarTab.HISTORY -> historyContent()
             }
         }
     }

@@ -17,6 +17,9 @@ import org.andrew.jpad.core.dump.DumpValue
 import org.andrew.jpad.core.database.DatabaseConnectionConfig
 import org.andrew.jpad.core.database.DatabaseService
 import org.andrew.jpad.core.database.DatabaseTableMeta
+import org.andrew.jpad.history.ExecutionHistoryRepository
+import org.andrew.jpad.history.ExecutionSnapshot
+import org.andrew.jpad.history.SqliteExecutionHistoryRepository
 import org.andrew.jpad.ui.components.BackgroundTask
 import org.andrew.jpad.ui.components.EngineState
 import org.andrew.jpad.ui.components.QueryTabItem
@@ -114,7 +117,10 @@ data class EditorUiState(
     val activeSidebarTab: SidebarTab = SidebarTab.FILES,
     val databaseConnections: List<DatabaseConnectionConfig> = emptyList(),
     val selectedConnectionId: String? = null,
-    val databaseSchemas: Map<String, List<DatabaseTableMeta>> = emptyMap()
+    val databaseSchemas: Map<String, List<DatabaseTableMeta>> = emptyMap(),
+    val executionHistory: List<ExecutionSnapshot> = emptyList(),
+    val selectedHistorySnapshotId: String? = null,
+    val diffSnapshot: ExecutionSnapshot? = null
 ) {
     val activeBackgroundTask: BackgroundTask?
         get() = backgroundTasks.firstOrNull()
@@ -144,6 +150,7 @@ data class EditorUiState(
 class EditorViewModel(
     private val executionEngine: ExecutionEngine,
     private val databaseService: DatabaseService = DatabaseService(),
+    private val historyRepository: ExecutionHistoryRepository = SqliteExecutionHistoryRepository(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default
 ) : ViewModel() {
 
@@ -161,6 +168,7 @@ class EditorViewModel(
         } catch (_: Exception) {}
         refreshWorkspace()
         initDatabases()
+        loadExecutionHistory()
     }
 
     private fun initDatabases() {
@@ -438,6 +446,21 @@ SELECT * FROM $tableName LIMIT 50;
                     }
                     state.copy(tabs = updated)
                 }
+
+                val sqlSnapshot = ExecutionSnapshot(
+                    tabTitle = active.title,
+                    languageMode = active.languageMode.name,
+                    code = active.code,
+                    status = if (queryResult.isSuccess) "SUCCESS" else "ERROR",
+                    durationMs = queryResult.executionTimeMs,
+                    consoleOutput = if (queryResult.isSuccess) {
+                        if (queryResult.affectedRows != null) "${queryResult.affectedRows} row(s) affected"
+                        else "${queryResult.table?.rows?.size ?: 0} rows retrieved"
+                    } else (queryResult.errorMessage ?: "Unknown error"),
+                    dumpCount = if (queryResult.table != null) 1 else 0
+                )
+                historyRepository.record(sqlSnapshot)
+                loadExecutionHistory()
             }
             return
         }
@@ -485,6 +508,18 @@ SELECT * FROM $tableName LIMIT 50;
                 }
                 state.copy(tabs = updated)
             }
+
+            val execSnapshot = ExecutionSnapshot(
+                tabTitle = active.title,
+                languageMode = active.languageMode.name,
+                code = codeToRun,
+                status = if (response.isSuccess) "SUCCESS" else "ERROR",
+                durationMs = response.durationMs,
+                consoleOutput = if (response.isSuccess) response.output else (if (response.error.isNotBlank()) response.error else response.output),
+                dumpCount = response.dumps.size
+            )
+            historyRepository.record(execSnapshot)
+            loadExecutionHistory()
         }
     }
 
@@ -690,6 +725,65 @@ System.out.println("Hello from $nameWithExt!");
     fun onOpenFolderDialog() {
         val chosen = showNativeOpenFolderDialog() ?: return
         setWorkspaceDirectory(chosen)
+    }
+
+    fun loadExecutionHistory() {
+        val history = historyRepository.getAll(100)
+        _uiState.update { it.copy(executionHistory = history) }
+    }
+
+    fun onSelectHistorySnapshot(snapshot: ExecutionSnapshot) {
+        _uiState.update { it.copy(selectedHistorySnapshotId = snapshot.id) }
+    }
+
+    fun onRestoreHistorySnapshot(snapshot: ExecutionSnapshot) {
+        val mode = try {
+            ScriptLanguageMode.valueOf(snapshot.languageMode)
+        } catch (_: Exception) {
+            ScriptLanguageMode.JAVA_STATEMENTS
+        }
+        val currentActiveId = _uiState.value.selectedTabId
+        _uiState.update { state ->
+            val updated = state.tabs.map { tab ->
+                if (tab.id == currentActiveId) {
+                    tab.copy(
+                        code = snapshot.code,
+                        languageMode = mode,
+                        isModified = true,
+                        statusMessage = "Restored snapshot (${snapshot.status})"
+                    )
+                } else tab
+            }
+            state.copy(tabs = updated, diffSnapshot = null)
+        }
+    }
+
+    fun onOpenDiffViewer(snapshot: ExecutionSnapshot) {
+        _uiState.update { it.copy(diffSnapshot = snapshot) }
+    }
+
+    fun onCloseDiffViewer() {
+        _uiState.update { it.copy(diffSnapshot = null) }
+    }
+
+    fun onDeleteHistorySnapshot(id: String) {
+        historyRepository.delete(id)
+        loadExecutionHistory()
+    }
+
+    fun onClearHistory() {
+        historyRepository.clear()
+        loadExecutionHistory()
+    }
+
+    fun onToggleHistoryTab() {
+        _uiState.update { state ->
+            if (state.isSidebarVisible && state.activeSidebarTab == SidebarTab.HISTORY) {
+                state.copy(isSidebarVisible = false)
+            } else {
+                state.copy(isSidebarVisible = true, activeSidebarTab = SidebarTab.HISTORY)
+            }
+        }
     }
 }
 

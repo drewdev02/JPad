@@ -54,6 +54,9 @@ import org.andrew.jpad.ui.components.sidebar.JPadDatabaseExplorer
 import org.andrew.jpad.ui.components.sidebar.JPadFileExplorer
 import org.andrew.jpad.ui.components.sidebar.JPadSidebarPanel
 import org.andrew.jpad.ui.components.sidebar.SidebarTab
+import org.andrew.jpad.history.ExecutionSnapshot
+import org.andrew.jpad.ui.components.history.JPadDiffViewerDialog
+import org.andrew.jpad.ui.components.history.JPadHistoryPanel
 import org.andrew.jpad.ui.theme.JPadTheme
 import org.jetbrains.compose.reload.DevelopmentEntryPoint
 import org.koin.compose.koinInject
@@ -95,7 +98,14 @@ fun App(
         onQueryDatabaseTable = viewModel::onQueryDatabaseTable,
         onAddDatabaseConnection = viewModel::onAddDatabaseConnection,
         onRefreshDatabases = viewModel::onRefreshDatabases,
-        onTestDatabaseConnection = viewModel::testDatabaseConnection
+        onTestDatabaseConnection = viewModel::testDatabaseConnection,
+        onToggleHistory = viewModel::onToggleHistoryTab,
+        onSelectHistorySnapshot = viewModel::onSelectHistorySnapshot,
+        onRestoreHistorySnapshot = viewModel::onRestoreHistorySnapshot,
+        onOpenDiffViewer = viewModel::onOpenDiffViewer,
+        onCloseDiffViewer = viewModel::onCloseDiffViewer,
+        onDeleteHistorySnapshot = viewModel::onDeleteHistorySnapshot,
+        onClearHistory = viewModel::onClearHistory
     )
 }
 
@@ -134,7 +144,14 @@ fun AppContent(
     onQueryDatabaseTable: (connectionId: String, tableName: String) -> Unit = { _, _ -> },
     onAddDatabaseConnection: (DatabaseConnectionConfig) -> Unit = {},
     onRefreshDatabases: () -> Unit = {},
-    onTestDatabaseConnection: (DatabaseConnectionConfig) -> Result<Unit> = { Result.success(Unit) }
+    onTestDatabaseConnection: (DatabaseConnectionConfig) -> Result<Unit> = { Result.success(Unit) },
+    onToggleHistory: () -> Unit = {},
+    onSelectHistorySnapshot: (ExecutionSnapshot) -> Unit = {},
+    onRestoreHistorySnapshot: (ExecutionSnapshot) -> Unit = {},
+    onOpenDiffViewer: (ExecutionSnapshot) -> Unit = {},
+    onCloseDiffViewer: () -> Unit = {},
+    onDeleteHistorySnapshot: (String) -> Unit = {},
+    onClearHistory: () -> Unit = {}
 ) {
     var activeResultTab by remember { mutableStateOf(ResultViewTab.CONSOLE_OUTPUT) }
 
@@ -207,6 +224,10 @@ fun AppContent(
                         onOpen()
                         true
                     }
+                    isModifierDown && event.key == Key.H -> {
+                        onToggleHistory()
+                        true
+                    }
                     else -> false
                 }
             }
@@ -224,7 +245,8 @@ fun AppContent(
                         onSaveClick = onSave,
                         onNewQueryClick = onNewTab,
                         isSidebarVisible = state.isSidebarVisible,
-                        onToggleSidebar = onToggleSidebar
+                        onToggleSidebar = onToggleSidebar,
+                        onToggleHistory = onToggleHistory
                     )
                 },
                 queryTabBar = {
@@ -269,6 +291,17 @@ fun AppContent(
                                     onAddConnection = onAddDatabaseConnection,
                                     onRefresh = onRefreshDatabases,
                                     onTestConnection = onTestDatabaseConnection
+                                )
+                            },
+                            historyContent = {
+                                JPadHistoryPanel(
+                                    history = state.executionHistory,
+                                    selectedSnapshotId = state.selectedHistorySnapshotId,
+                                    onSelectSnapshot = onSelectHistorySnapshot,
+                                    onRestoreSnapshot = onRestoreHistorySnapshot,
+                                    onCompareDiff = onOpenDiffViewer,
+                                    onDeleteSnapshot = onDeleteHistorySnapshot,
+                                    onClearHistory = onClearHistory
                                 )
                             }
                         )
@@ -398,6 +431,15 @@ fun AppContent(
                     )
                 }
             )
+
+            state.diffSnapshot?.let { snapshot ->
+                JPadDiffViewerDialog(
+                    snapshot = snapshot,
+                    currentCode = state.code,
+                    onRestore = onRestoreHistorySnapshot,
+                    onDismiss = onCloseDiffViewer
+                )
+            }
         }
     }
 }

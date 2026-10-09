@@ -41,6 +41,7 @@ fun JPadToolbar(
     onNewQueryClick: (() -> Unit)? = null,
     isSidebarVisible: Boolean = true,
     onToggleSidebar: (() -> Unit)? = null,
+    onToggleHistory: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val colors = JPadTheme.colors
@@ -127,6 +128,18 @@ fun JPadToolbar(
             )
         }
 
+        onToggleHistory?.let { onHist ->
+            JPadToolbarButton(
+                onClick = onHist,
+                text = "History",
+                shortcut = "Ctrl+H",
+                style = JPadButtonStyle.DEFAULT,
+                icon = {
+                    Text("🕒", style = JPadTheme.typography.uiSmall)
+                }
+            )
+        }
+
         // Separator
         Box(
             modifier = Modifier
@@ -139,7 +152,8 @@ fun JPadToolbar(
         val languageOptions = listOf(
             DropdownOption(ScriptLanguageMode.JAVA_STATEMENTS, ScriptLanguageMode.JAVA_STATEMENTS.displayName),
             DropdownOption(ScriptLanguageMode.JAVA_PROGRAM, ScriptLanguageMode.JAVA_PROGRAM.displayName),
-            DropdownOption(ScriptLanguageMode.JAVA_EXPRESSION, ScriptLanguageMode.JAVA_EXPRESSION.displayName)
+            DropdownOption(ScriptLanguageMode.JAVA_EXPRESSION, ScriptLanguageMode.JAVA_EXPRESSION.displayName),
+            DropdownOption(ScriptLanguageMode.SQL, ScriptLanguageMode.SQL.displayName)
         )
 
         JPadDropdown(

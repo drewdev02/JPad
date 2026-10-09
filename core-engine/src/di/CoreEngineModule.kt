@@ -34,5 +34,6 @@ val coreEngineModule = module {
     singleOf(::RemoteScriptRunner) { bind<ScriptRunner>() }
     singleOf(::RemoteSnippetRunner) { bind<SnippetRunner>() }
     single { org.andrew.jpad.core.database.DatabaseService() }
+    single<org.andrew.jpad.history.ExecutionHistoryRepository> { org.andrew.jpad.history.SqliteExecutionHistoryRepository() }
     singleOf(::ExecutionEngine)
 }
