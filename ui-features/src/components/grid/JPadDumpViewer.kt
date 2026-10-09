@@ -52,6 +52,89 @@ fun JPadDumpViewer(
 }
 
 @Composable
+fun JPadMultiDumpViewer(
+    dumps: List<DumpValue>,
+    modifier: Modifier = Modifier
+) {
+    if (dumps.isEmpty()) {
+        Text(
+            text = "// No dump results available for this query.",
+            style = JPadTheme.typography.uiSmall.copy(color = JPadTheme.colors.textMuted),
+            modifier = modifier.padding(8.dp)
+        )
+        return
+    }
+
+    val scrollState = rememberScrollState()
+
+    if (dumps.size == 1) {
+        Column(
+            modifier = modifier
+                .verticalScroll(scrollState)
+                .padding(8.dp)
+        ) {
+            JPadDumpViewer(value = dumps.first(), modifier = Modifier.fillMaxWidth())
+        }
+        return
+    }
+
+    Column(
+        modifier = modifier
+            .verticalScroll(scrollState)
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        dumps.forEachIndexed { index, dump ->
+            val dumpTitle = when (dump) {
+                is DumpValue.Table -> "Table: ${dump.typeName} (${dump.totalCount} items)"
+                is DumpValue.KeyValueList -> "Object: ${dump.title} (${dump.entries.size} fields)"
+                is DumpValue.Primitive -> "Primitive (${dump.typeName ?: dump.rawValue?.let { it::class.simpleName } ?: "null"}): ${dump.rawValue}"
+                is DumpValue.Text -> "Text Output"
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(JPadTheme.colors.backgroundPanel, RoundedCornerShape(4.dp))
+                    .border(1.dp, JPadTheme.colors.borderSubtle, RoundedCornerShape(4.dp))
+                    .padding(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .background(JPadTheme.colors.accentPrimary, RoundedCornerShape(3.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "Dump #${index + 1}",
+                            style = JPadTheme.typography.uiSmall.copy(
+                                color = JPadTheme.colors.textOnAccent,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                    Text(
+                        text = dumpTitle,
+                        style = JPadTheme.typography.uiSmall.copy(
+                            color = JPadTheme.colors.textSecondary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                }
+
+                JPadDumpViewer(value = dump, modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+@Composable
 fun DumpPrimitiveCell(
     value: DumpValue.Primitive,
     modifier: Modifier = Modifier

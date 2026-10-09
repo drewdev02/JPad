@@ -35,6 +35,8 @@ fun JPadToolbar(
     onRunClick: () -> Unit,
     onStopClick: () -> Unit,
     isRunning: Boolean,
+    onSaveClick: (() -> Unit)? = null,
+    onNewQueryClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val colors = JPadTheme.colors
@@ -72,6 +74,30 @@ fun JPadToolbar(
                 Text("■", style = JPadTheme.typography.uiSmall.copy(color = colors.stopRed))
             }
         )
+
+        onSaveClick?.let { onSave ->
+            JPadToolbarButton(
+                onClick = onSave,
+                text = "Save",
+                shortcut = "Ctrl+S",
+                style = JPadButtonStyle.DEFAULT,
+                icon = {
+                    Text("💾", style = JPadTheme.typography.uiSmall)
+                }
+            )
+        }
+
+        onNewQueryClick?.let { onNew ->
+            JPadToolbarButton(
+                onClick = onNew,
+                text = "New",
+                shortcut = "Ctrl+N",
+                style = JPadButtonStyle.DEFAULT,
+                icon = {
+                    Text("+", style = JPadTheme.typography.uiSmall)
+                }
+            )
+        }
 
         // Separator
         Box(
