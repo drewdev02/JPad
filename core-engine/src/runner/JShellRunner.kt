@@ -28,7 +28,7 @@ class JShellRunner(
         "import static org.andrew.jpad.runtime.JPad.dump;"
     )
 
-    override fun execute(code: String): ExecutionOutput {
+    override fun execute(code: String, classpath: List<File>): ExecutionOutput {
         val stdoutStream = ByteArrayOutputStream()
         val stderrStream = ByteArrayOutputStream()
         val outPrintStream = PrintStream(stdoutStream, true, Charsets.UTF_8)
@@ -64,6 +64,12 @@ class JShellRunner(
                     if (path.isNotBlank()) {
                         jshell.addToClasspath(path)
                     }
+                }
+            }
+
+            for (jar in classpath) {
+                if (jar.exists()) {
+                    jshell.addToClasspath(jar.absolutePath)
                 }
             }
 

@@ -4,6 +4,8 @@ import org.andrew.jpad.core.compiler.CompilationDiagnostic
 import org.andrew.jpad.core.compiler.DiagnosticKind
 import org.andrew.jpad.core.compiler.InMemoryJavaCompiler
 import org.andrew.jpad.core.compiler.JavaCompilerService
+import org.andrew.jpad.core.dependencies.DependencyResolver
+import org.andrew.jpad.core.dependencies.MavenDependencyResolver
 import org.andrew.jpad.core.dump.DumpValue
 import org.andrew.jpad.core.parser.SnippetMode
 import org.andrew.jpad.core.parser.SnippetWrapper
@@ -25,7 +27,8 @@ class ExecutionEngine(
     private val compiler: JavaCompilerService,
     private val wrapper: SnippetWrapper,
     private val runner: ScriptRunner,
-    private val snippetRunner: SnippetRunner
+    private val snippetRunner: SnippetRunner,
+    private val dependencyResolver: DependencyResolver = MavenDependencyResolver()
 ) {
 
     /** Stops the code currently running, if any. */
@@ -35,14 +38,35 @@ class ExecutionEngine(
     }
 
     fun execute(userCode: String): ExecutionResponse {
-        val parsed = wrapper.wrap(userCode)
         var durationMs = 0L
+
+        val coordinates = dependencyResolver.extractDependencies(userCode)
+        val classpathJars = if (coordinates.isNotEmpty()) {
+            val resolutionResult: org.andrew.jpad.core.dependencies.ResolutionResult
+            val resTime = measureTimeMillis {
+                resolutionResult = dependencyResolver.resolve(coordinates)
+            }
+            durationMs += resTime
+            if (!resolutionResult.isSuccess) {
+                return ExecutionResponse(
+                    isSuccess = false,
+                    output = "",
+                    error = "Dependency resolution failed:\n${resolutionResult.errorMessage ?: "Unknown error"}",
+                    durationMs = durationMs
+                )
+            }
+            resolutionResult.classpathJars
+        } else {
+            emptyList()
+        }
+
+        val parsed = wrapper.wrap(userCode)
 
         // If it's a full Java class with main method, compile directly 1:1 without altering the code
         if (parsed.mode == SnippetMode.PROGRAM) {
             val compilationResult: org.andrew.jpad.core.compiler.CompilationResult
             val compilationTime = measureTimeMillis {
-                compilationResult = compiler.compile(listOf(parsed.generatedSource))
+                compilationResult = compiler.compile(listOf(parsed.generatedSource), classpath = classpathJars)
             }
             durationMs += compilationTime
 
@@ -62,7 +86,11 @@ class ExecutionEngine(
 
             val executionOutput: org.andrew.jpad.core.runner.ExecutionOutput
             val runTime = measureTimeMillis {
-                executionOutput = runner.run(compilationResult.compiledClasses, parsed.fullClassName)
+                executionOutput = runner.run(
+                    compiledClasses = compilationResult.compiledClasses,
+                    mainClassName = parsed.fullClassName,
+                    classpath = classpathJars
+                )
             }
             durationMs += runTime
 
@@ -79,7 +107,7 @@ class ExecutionEngine(
         // For statements, expressions, top-level functions, records, sealed types: evaluate via JShell
         val executionOutput: org.andrew.jpad.core.runner.ExecutionOutput
         val runTime = measureTimeMillis {
-            executionOutput = snippetRunner.execute(userCode)
+            executionOutput = snippetRunner.execute(userCode, classpath = classpathJars)
         }
         durationMs += runTime
 

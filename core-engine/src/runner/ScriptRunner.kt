@@ -2,6 +2,7 @@ package org.andrew.jpad.core.runner
 
 import org.andrew.jpad.core.compiler.CompilationDiagnostic
 import org.andrew.jpad.core.dump.DumpValue
+import java.io.File
 
 data class ExecutionOutput(
     val stdout: String,
@@ -16,12 +17,16 @@ interface ScriptRunner {
     fun run(
         compiledClasses: Map<String, ByteArray>,
         mainClassName: String,
-        args: Array<String> = emptyArray()
+        args: Array<String> = emptyArray(),
+        classpath: List<File> = emptyList()
     ): ExecutionOutput
 }
 
 interface SnippetRunner {
-    fun execute(code: String): ExecutionOutput
+    fun execute(
+        code: String,
+        classpath: List<File> = emptyList()
+    ): ExecutionOutput
 }
 
 interface CancellableRunner {

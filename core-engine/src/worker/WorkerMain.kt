@@ -35,8 +35,17 @@ fun main() {
 
         val result = when (request) {
             is WorkerRequest.RunProgram ->
-                programRunner.run(request.compiledClasses, request.mainClassName, request.args.toTypedArray())
-            is WorkerRequest.RunSnippet -> snippetRunner.execute(request.code)
+                programRunner.run(
+                    compiledClasses = request.compiledClasses,
+                    mainClassName = request.mainClassName,
+                    args = request.args.toTypedArray(),
+                    classpath = request.classpath.map { java.io.File(it) }
+                )
+            is WorkerRequest.RunSnippet ->
+                snippetRunner.execute(
+                    code = request.code,
+                    classpath = request.classpath.map { java.io.File(it) }
+                )
         }
 
         output.writeObject(result.toResponse())

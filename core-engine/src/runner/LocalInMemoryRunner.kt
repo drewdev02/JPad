@@ -4,8 +4,10 @@ import org.andrew.jpad.core.dump.DumpValue
 import org.andrew.jpad.core.dump.ObjectDumper
 import org.andrew.jpad.runtime.JPad
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.PrintStream
 import java.lang.reflect.InvocationTargetException
+import java.net.URLClassLoader
 
 class LocalInMemoryRunner(
     private val objectDumper: ObjectDumper
@@ -14,9 +16,15 @@ class LocalInMemoryRunner(
     override fun run(
         compiledClasses: Map<String, ByteArray>,
         mainClassName: String,
-        args: Array<String>
+        args: Array<String>,
+        classpath: List<File>
     ): ExecutionOutput {
-        val classLoader = MemoryClassLoader(compiledClasses, javaClass.classLoader)
+        val parentLoader = if (classpath.isNotEmpty()) {
+            URLClassLoader(classpath.map { it.toURI().toURL() }.toTypedArray(), javaClass.classLoader)
+        } else {
+            javaClass.classLoader
+        }
+        val classLoader = MemoryClassLoader(compiledClasses, parentLoader)
         val originalOut = System.out
         val originalErr = System.err
 

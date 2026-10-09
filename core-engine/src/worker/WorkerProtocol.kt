@@ -12,10 +12,14 @@ sealed interface WorkerRequest : Serializable {
     data class RunProgram(
         val compiledClasses: Map<String, ByteArray>,
         val mainClassName: String,
-        val args: List<String> = emptyList()
+        val args: List<String> = emptyList(),
+        val classpath: List<String> = emptyList()
     ) : WorkerRequest
 
-    data class RunSnippet(val code: String) : WorkerRequest
+    data class RunSnippet(
+        val code: String,
+        val classpath: List<String> = emptyList()
+    ) : WorkerRequest
 }
 
 data class WorkerResponse(
