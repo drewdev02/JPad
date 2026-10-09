@@ -39,6 +39,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import org.andrew.jpad.presentation.EditorUiState
 import org.andrew.jpad.presentation.EditorViewModel
+import org.andrew.jpad.core.completion.CompletionService
 import org.andrew.jpad.ui.components.EngineState
 import org.andrew.jpad.ui.components.JPadQueryTabBar
 import org.andrew.jpad.ui.components.JPadStatusBar
@@ -51,17 +52,20 @@ import org.andrew.jpad.ui.components.results.JPadProblemsViewer
 import org.andrew.jpad.ui.components.sidebar.JPadFileExplorer
 import org.andrew.jpad.ui.theme.JPadTheme
 import org.jetbrains.compose.reload.DevelopmentEntryPoint
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 @DevelopmentEntryPoint
 fun App(
-    viewModel: EditorViewModel = koinViewModel()
+    viewModel: EditorViewModel = koinViewModel(),
+    completionService: CompletionService = koinInject()
 ) {
     val state by viewModel.uiState.collectAsState()
 
     AppContent(
         state = state,
+        completionService = completionService,
         onCodeChanged = viewModel::onCodeChanged,
         onCursorPositionChanged = viewModel::onCursorPositionChanged,
         onLanguageModeChanged = viewModel::onLanguageModeChanged,
@@ -94,6 +98,7 @@ enum class ResultViewTab {
 @Composable
 fun AppContent(
     state: EditorUiState,
+    completionService: CompletionService? = null,
     onCodeChanged: (String) -> Unit,
     onCursorPositionChanged: (Int, Int) -> Unit = { _, _ -> },
     onLanguageModeChanged: (ScriptLanguageMode) -> Unit,
@@ -242,6 +247,7 @@ fun AppContent(
                             onValueChange = onCodeChanged,
                             onCursorPositionChange = onCursorPositionChanged,
                             targetCursorPosition = state.targetCursorPosition,
+                            completionService = completionService,
                             modifier = Modifier.fillMaxSize()
                         )
                     }

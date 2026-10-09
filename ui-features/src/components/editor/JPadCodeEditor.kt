@@ -22,11 +22,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import org.andrew.jpad.core.completion.CompletionResult
+import org.andrew.jpad.core.completion.CompletionService
+import org.andrew.jpad.core.completion.LookupItem
+import org.andrew.jpad.ui.components.editor.completion.JPadLookupPopup
 import org.andrew.jpad.ui.theme.JPadTheme
 
 fun calculateCursorPosition(text: String, selectionOffset: Int): Pair<Int, Int> {
@@ -56,6 +67,7 @@ fun JPadCodeEditor(
     onValueChange: (String) -> Unit,
     onCursorPositionChange: ((line: Int, col: Int) -> Unit)? = null,
     targetCursorPosition: Pair<Int, Int>? = null,
+    completionService: CompletionService? = null,
     modifier: Modifier = Modifier,
     readOnly: Boolean = false
 ) {
@@ -92,6 +104,9 @@ fun JPadCodeEditor(
                 onCursorPositionChange(ln, col)
             }
         },
+        completionService = completionService,
+        onExternalValueCommit = onValueChange,
+        onCursorMove = onCursorPositionChange,
         modifier = modifier,
         readOnly = readOnly
     )
@@ -101,6 +116,9 @@ fun JPadCodeEditor(
 fun JPadCodeEditor(
     textFieldValue: TextFieldValue,
     onTextFieldValueChange: (TextFieldValue) -> Unit,
+    completionService: CompletionService? = null,
+    onExternalValueCommit: ((String) -> Unit)? = null,
+    onCursorMove: ((line: Int, col: Int) -> Unit)? = null,
     modifier: Modifier = Modifier,
     readOnly: Boolean = false
 ) {
@@ -117,55 +135,169 @@ fun JPadCodeEditor(
     val horizontalScrollState = rememberScrollState()
     val visualTransformation = remember(colors) { JavaVisualTransformation(colors) }
 
-    Row(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.backgroundEditor)
-            .verticalScroll(verticalScrollState)
-    ) {
-        // Line numbers Gutter
-        Column(
+    var completionResult by remember { mutableStateOf<CompletionResult?>(null) }
+    var selectedCompletionIndex by remember { mutableStateOf(0) }
+
+    fun applyCompletion(item: LookupItem, anchor: Int) {
+        val currentText = textFieldValue.text
+        val cursor = textFieldValue.selection.start
+        val prefixBefore = currentText.substring(0, anchor)
+        val textAfter = if (cursor <= currentText.length) currentText.substring(cursor) else ""
+        val newText = prefixBefore + item.insertText + textAfter
+        val newCursorOffset = (anchor + item.insertText.length + item.cursorDelta).coerceIn(0, newText.length)
+
+        val newSelection = TextRange(newCursorOffset)
+        val updatedValue = TextFieldValue(text = newText, selection = newSelection)
+        onTextFieldValueChange(updatedValue)
+        onExternalValueCommit?.invoke(newText)
+        completionResult = null
+        val (ln, col) = calculateCursorPosition(newText, newCursorOffset)
+        onCursorMove?.invoke(ln, col)
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Row(
             modifier = Modifier
-                .width(gutterWidth)
-                .background(colors.backgroundSidebar)
-                .padding(top = 8.dp, bottom = 8.dp, end = 6.dp)
+                .fillMaxSize()
+                .background(colors.backgroundEditor)
+                .verticalScroll(verticalScrollState)
         ) {
-            for (lineNum in 1..lineCount) {
-                Text(
-                    text = lineNum.toString(),
-                    style = JPadTheme.typography.code.copy(
-                        color = colors.textMuted,
-                        textAlign = TextAlign.End
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+            // Line numbers Gutter
+            Column(
+                modifier = Modifier
+                    .width(gutterWidth)
+                    .background(colors.backgroundSidebar)
+                    .padding(top = 8.dp, bottom = 8.dp, end = 6.dp)
+            ) {
+                for (lineNum in 1..lineCount) {
+                    Text(
+                        text = lineNum.toString(),
+                        style = JPadTheme.typography.code.copy(
+                            color = colors.textMuted,
+                            textAlign = TextAlign.End
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Gutter Border
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(1.dp)
+                    .background(colors.borderSubtle)
+            )
+
+            // Code Editor Input Area
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                    .horizontalScroll(horizontalScrollState)
+            ) {
+                BasicTextField(
+                    value = textFieldValue,
+                    onValueChange = { newValue ->
+                        onTextFieldValueChange(newValue)
+
+                        // Auto-completion trigger check on typing
+                        if (completionService != null && !readOnly) {
+                            val cursor = newValue.selection.start
+                            if (cursor > 0 && cursor <= newValue.text.length) {
+                                val lastChar = newValue.text[cursor - 1]
+                                if (lastChar.isLetterOrDigit() || lastChar == '.' || lastChar == '@') {
+                                    val res = completionService.getCompletions(newValue.text, cursor)
+                                    if (res.items.isNotEmpty()) {
+                                        completionResult = res
+                                        selectedCompletionIndex = 0
+                                    } else {
+                                        completionResult = null
+                                    }
+                                } else {
+                                    completionResult = null
+                                }
+                            } else {
+                                completionResult = null
+                            }
+                        }
+                    },
+                    textStyle = JPadTheme.typography.code.copy(color = colors.textPrimary),
+                    cursorBrush = SolidColor(colors.accentPrimary),
+                    visualTransformation = visualTransformation,
+                    readOnly = readOnly,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onPreviewKeyEvent { event ->
+                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            val isCtrlOrMeta = event.isCtrlPressed || event.isMetaPressed
+
+                            // Manual completion trigger on Ctrl+Space
+                            if (isCtrlOrMeta && event.key == Key.Spacebar) {
+                                if (completionService != null && !readOnly) {
+                                    val cursor = textFieldValue.selection.start
+                                    val res = completionService.getCompletions(textFieldValue.text, cursor)
+                                    if (res.items.isNotEmpty()) {
+                                        completionResult = res
+                                        selectedCompletionIndex = 0
+                                        return@onPreviewKeyEvent true
+                                    }
+                                }
+                                return@onPreviewKeyEvent false
+                            }
+
+                            // Completion Popup Navigation
+                            val cur = completionResult
+                            if (cur != null && cur.items.isNotEmpty()) {
+                                when (event.key) {
+                                    Key.DirectionDown -> {
+                                        selectedCompletionIndex = (selectedCompletionIndex + 1) % cur.items.size
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    Key.DirectionUp -> {
+                                        selectedCompletionIndex = (selectedCompletionIndex - 1 + cur.items.size) % cur.items.size
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    Key.Enter, Key.Tab -> {
+                                        val chosen = cur.items.getOrNull(selectedCompletionIndex)
+                                        if (chosen != null) {
+                                            applyCompletion(chosen, cur.anchor)
+                                            return@onPreviewKeyEvent true
+                                        }
+                                    }
+                                    Key.Escape -> {
+                                        completionResult = null
+                                        return@onPreviewKeyEvent true
+                                    }
+                                }
+                            }
+                            false
+                        }
                 )
             }
         }
 
-        // Gutter Border
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(1.dp)
-                .background(colors.borderSubtle)
-        )
+        // Floating IntelliJ-style Completion Popup
+        completionResult?.let { res ->
+            if (res.items.isNotEmpty()) {
+                val (cursorLine, cursorCol) = calculateCursorPosition(textFieldValue.text, textFieldValue.selection.start)
+                val charWidth = 7.8f
+                val lineHeight = 18f
+                val xOffset = (gutterWidth.value + (cursorCol - 1) * charWidth - horizontalScrollState.value).coerceIn(gutterWidth.value, 600f)
+                val yOffset = (cursorLine * lineHeight - verticalScrollState.value + 14f).coerceIn(0f, 800f)
 
-        // Code Editor Input Area
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 8.dp, vertical = 8.dp)
-                .horizontalScroll(horizontalScrollState)
-        ) {
-            BasicTextField(
-                value = textFieldValue,
-                onValueChange = onTextFieldValueChange,
-                textStyle = JPadTheme.typography.code.copy(color = colors.textPrimary),
-                cursorBrush = SolidColor(colors.accentPrimary),
-                visualTransformation = visualTransformation,
-                readOnly = readOnly,
-                modifier = Modifier.fillMaxWidth()
-            )
+                Box(
+                    modifier = Modifier.padding(start = xOffset.dp, top = yOffset.dp)
+                ) {
+                    JPadLookupPopup(
+                        items = res.items,
+                        selectedIndex = selectedCompletionIndex,
+                        onItemSelected = { item ->
+                            applyCompletion(item, res.anchor)
+                        }
+                    )
+                }
+            }
         }
     }
 }
