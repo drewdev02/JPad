@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -139,6 +140,7 @@ class EditorViewModel(
         executionJob = viewModelScope.launch(dispatcher) {
             val codeToRun = _uiState.value.code
             val response = executionEngine.execute(codeToRun)
+            if (!isActive) return@launch
 
             if (response.isSuccess) {
                 _uiState.update {
@@ -167,6 +169,7 @@ class EditorViewModel(
     fun onStop() {
         executionJob?.cancel()
         executionJob = null
+        executionEngine.cancel()
         _uiState.update {
             it.copy(
                 engineState = EngineState.READY,

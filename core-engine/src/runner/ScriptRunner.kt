@@ -19,3 +19,11 @@ interface ScriptRunner {
         args: Array<String> = emptyArray()
     ): ExecutionOutput
 }
+
+interface SnippetRunner {
+    fun execute(code: String): ExecutionOutput
+}
+
+interface CancellableRunner {
+    fun cancel()
+}

@@ -7,9 +7,9 @@ import org.andrew.jpad.core.compiler.JavaCompilerService
 import org.andrew.jpad.core.dump.DumpValue
 import org.andrew.jpad.core.parser.SnippetMode
 import org.andrew.jpad.core.parser.SnippetWrapper
-import org.andrew.jpad.core.runner.JShellRunner
-import org.andrew.jpad.core.runner.LocalInMemoryRunner
+import org.andrew.jpad.core.runner.CancellableRunner
 import org.andrew.jpad.core.runner.ScriptRunner
+import org.andrew.jpad.core.runner.SnippetRunner
 import kotlin.system.measureTimeMillis
 
 data class ExecutionResponse(
@@ -25,8 +25,14 @@ class ExecutionEngine(
     private val compiler: JavaCompilerService,
     private val wrapper: SnippetWrapper,
     private val runner: ScriptRunner,
-    private val jshellRunner: JShellRunner
+    private val snippetRunner: SnippetRunner
 ) {
+
+    /** Stops the code currently running, if any. */
+    fun cancel() {
+        (runner as? CancellableRunner)?.cancel()
+        (snippetRunner as? CancellableRunner)?.cancel()
+    }
 
     fun execute(userCode: String): ExecutionResponse {
         val parsed = wrapper.wrap(userCode)
@@ -73,7 +79,7 @@ class ExecutionEngine(
         // For statements, expressions, top-level functions, records, sealed types: evaluate via JShell
         val executionOutput: org.andrew.jpad.core.runner.ExecutionOutput
         val runTime = measureTimeMillis {
-            executionOutput = jshellRunner.execute(userCode)
+            executionOutput = snippetRunner.execute(userCode)
         }
         durationMs += runTime
 

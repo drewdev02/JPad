@@ -8,6 +8,10 @@ import org.andrew.jpad.core.parser.SnippetWrapper
 import org.andrew.jpad.core.runner.JShellRunner
 import org.andrew.jpad.core.runner.LocalInMemoryRunner
 import org.andrew.jpad.core.runner.ScriptRunner
+import org.andrew.jpad.core.runner.SnippetRunner
+import org.andrew.jpad.core.worker.RemoteScriptRunner
+import org.andrew.jpad.core.worker.RemoteSnippetRunner
+import org.andrew.jpad.core.worker.WorkerSupervisor
 import org.koin.core.module.dsl.bind
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
@@ -16,7 +20,12 @@ val coreEngineModule = module {
     single { ObjectDumper() }
     singleOf(::InMemoryJavaCompiler) { bind<JavaCompilerService>() }
     singleOf(::SnippetWrapper)
-    singleOf(::LocalInMemoryRunner) { bind<ScriptRunner>() }
+    // In-process runners: only the worker JVM (and tests of the runners themselves) use these.
+    singleOf(::LocalInMemoryRunner)
     singleOf(::JShellRunner)
+    // User code runs in an isolated worker JVM.
+    single { WorkerSupervisor() }
+    singleOf(::RemoteScriptRunner) { bind<ScriptRunner>() }
+    singleOf(::RemoteSnippetRunner) { bind<SnippetRunner>() }
     singleOf(::ExecutionEngine)
 }

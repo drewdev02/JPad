@@ -16,7 +16,7 @@ import java.io.PrintStream
 
 class JShellRunner(
     private val objectDumper: ObjectDumper
-) {
+) : SnippetRunner {
 
     private val defaultImports = listOf(
         "import java.util.*;",
@@ -28,7 +28,7 @@ class JShellRunner(
         "import static org.andrew.jpad.runtime.JPad.dump;"
     )
 
-    fun execute(code: String): ExecutionOutput {
+    override fun execute(code: String): ExecutionOutput {
         val stdoutStream = ByteArrayOutputStream()
         val stderrStream = ByteArrayOutputStream()
         val outPrintStream = PrintStream(stdoutStream, true, Charsets.UTF_8)

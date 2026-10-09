@@ -20,7 +20,7 @@ data class CompilationDiagnostic(
     val column: Long,
     val message: String,
     val kind: DiagnosticKind
-)
+) : java.io.Serializable
 
 data class CompilationResult(
     val isSuccess: Boolean,

@@ -1,6 +1,6 @@
 package org.andrew.jpad.core.dump
 
-sealed interface DumpValue {
+sealed interface DumpValue : java.io.Serializable {
     data class Primitive(val rawValue: Any?, val typeName: String? = null) : DumpValue
     data class KeyValueList(val title: String, val entries: List<Pair<String, DumpValue>>) : DumpValue
     data class Table(
