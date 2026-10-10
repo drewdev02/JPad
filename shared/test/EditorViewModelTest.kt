@@ -508,5 +508,24 @@ class EditorViewModelTest {
         viewModel.hideShortcutsDialog()
         assertFalse(viewModel.uiState.value.isShortcutsDialogVisible)
     }
+
+    @Test
+    fun `clearCache purges cache entries and updates status message`() {
+        org.andrew.jpad.runtime.JPad.cache("k1") { "v1" }
+        assertEquals(1, org.andrew.jpad.runtime.JPad.cacheSize())
+
+        val purged = viewModel.clearCache()
+        assertEquals(1, purged)
+        assertEquals(0, org.andrew.jpad.runtime.JPad.cacheSize())
+        assertTrue(viewModel.uiState.value.statusMessage.contains("Cleared in-memory cache"))
+    }
+
+    @Test
+    fun `insertSnippet appends snippet to active tab code`() {
+        viewModel.onCodeChanged("var x = 10;")
+        viewModel.insertSnippet("dump(x);")
+        assertTrue(viewModel.uiState.value.code.contains("var x = 10;"))
+        assertTrue(viewModel.uiState.value.code.contains("dump(x);"))
+    }
 }
 

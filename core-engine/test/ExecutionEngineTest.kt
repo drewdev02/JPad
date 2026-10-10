@@ -100,4 +100,32 @@ class ExecutionEngineTest {
         assertTrue(response.output.contains("Developer tasks: 3"))
         assertEquals(1, response.dumps.size)
     }
+
+    @Test
+    fun `executes user script using cache and retains computed values across executions`() {
+        val script = """
+            var val1 = cache("my_calc", () -> 42 * 10);
+            System.out.println("Cached value: " + val1);
+        """.trimIndent()
+
+        val response = engine.execute(script)
+
+        assertTrue(response.isSuccess, "Error: ${response.error}")
+        assertTrue(response.output.contains("Cached value: 420"))
+    }
+
+    @Test
+    fun `executes user script using benchmark and captures benchmark dump`() {
+        val script = """
+            benchmark("Array Sorting", 20, () -> {
+                var list = new ArrayList<>(List.of(3, 1, 4, 1, 5, 9));
+                Collections.sort(list);
+            });
+        """.trimIndent()
+
+        val response = engine.execute(script)
+
+        assertTrue(response.isSuccess, "Error: ${response.error}")
+        assertTrue(response.dumps.isNotEmpty(), "Expected benchmark to trigger a dump")
+    }
 }

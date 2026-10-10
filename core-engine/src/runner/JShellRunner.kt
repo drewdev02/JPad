@@ -25,7 +25,10 @@ class JShellRunner(
         "import java.time.*;",
         "import java.util.function.*;",
         "import org.andrew.jpad.runtime.JPad;",
-        "import static org.andrew.jpad.runtime.JPad.dump;"
+        "import static org.andrew.jpad.runtime.JPad.dump;",
+        "import static org.andrew.jpad.runtime.JPad.cache;",
+        "import static org.andrew.jpad.runtime.JPad.benchmark;",
+        "import static org.andrew.jpad.runtime.JPad.query;"
     )
 
     override fun execute(code: String, classpath: List<File>): ExecutionOutput {

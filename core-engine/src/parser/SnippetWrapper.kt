@@ -64,7 +64,10 @@ class SnippetWrapper {
             "import java.util.function.*;",
             "import java.time.*;",
             "import org.andrew.jpad.runtime.JPad;",
-            "import static org.andrew.jpad.runtime.JPad.dump;"
+            "import static org.andrew.jpad.runtime.JPad.dump;",
+            "import static org.andrew.jpad.runtime.JPad.cache;",
+            "import static org.andrew.jpad.runtime.JPad.benchmark;",
+            "import static org.andrew.jpad.runtime.JPad.query;"
         )
 
         val defaultImportBlock = defaultImports.joinToString("\n") + "\n"

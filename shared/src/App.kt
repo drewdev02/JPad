@@ -116,7 +116,9 @@ fun App(
         onToggleCommandPalette = viewModel::toggleCommandPalette,
         onCloseCommandPalette = viewModel::hideCommandPalette,
         onToggleShortcuts = viewModel::toggleShortcutsDialog,
-        onCloseShortcuts = viewModel::hideShortcutsDialog
+        onCloseShortcuts = viewModel::hideShortcutsDialog,
+        onClearCache = { viewModel.clearCache() },
+        onInsertSnippet = viewModel::insertSnippet
     )
 }
 
@@ -167,7 +169,9 @@ fun AppContent(
     onToggleCommandPalette: () -> Unit = {},
     onCloseCommandPalette: () -> Unit = {},
     onToggleShortcuts: () -> Unit = {},
-    onCloseShortcuts: () -> Unit = {}
+    onCloseShortcuts: () -> Unit = {},
+    onClearCache: () -> Unit = {},
+    onInsertSnippet: (String) -> Unit = {}
 ) {
     var activeResultTab by remember { mutableStateOf(ResultViewTab.CONSOLE_OUTPUT) }
 
@@ -501,6 +505,38 @@ fun AppContent(
                             shortcut = "Shift+F5",
                             icon = "⏹️",
                             onExecute = onStop
+                        ),
+                        CommandPaletteAction(
+                            id = "exec_clear_cache",
+                            title = "Clear JPad In-Memory Cache",
+                            subtitle = "Purge all cached objects from Util.Cache/JPad.cache",
+                            category = CommandCategory.EXECUTION,
+                            icon = "🧹",
+                            onExecute = onClearCache
+                        ),
+                        CommandPaletteAction(
+                            id = "template_benchmark",
+                            title = "Insert Micro-Benchmark Snippet",
+                            subtitle = "Insert benchmark template for latency & throughput testing",
+                            category = CommandCategory.EXECUTION,
+                            icon = "⚡",
+                            onExecute = {
+                                onInsertSnippet(
+                                    "// JPad micro-benchmark\nbenchmark(\"Operation Benchmark\", 100, () -> {\n    // Code to benchmark here\n});"
+                                )
+                            }
+                        ),
+                        CommandPaletteAction(
+                            id = "template_cache",
+                            title = "Insert Interactive Cache Snippet",
+                            subtitle = "Insert cache(key, supplier) template",
+                            category = CommandCategory.EXECUTION,
+                            icon = "💾",
+                            onExecute = {
+                                onInsertSnippet(
+                                    "// JPad interactive cache\nvar cachedValue = cache(\"cache_key\", () -> {\n    return \"expensive_computation\";\n});\ndump(cachedValue);"
+                                )
+                            }
                         ),
                         CommandPaletteAction(
                             id = "file_new",

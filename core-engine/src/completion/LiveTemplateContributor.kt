@@ -57,6 +57,30 @@ class LiveTemplateContributor {
             description = "Maven dependency directive",
             templateText = "// @deps ",
             cursorDelta = 0
+        ),
+        LiveTemplate(
+            key = "cache",
+            description = "JPad interactive cache",
+            templateText = "cache(\"key\", () -> );",
+            cursorDelta = -2
+        ),
+        LiveTemplate(
+            key = "bench",
+            description = "JPad micro-benchmark",
+            templateText = "benchmark(\"Task\", () -> {\n    \n});",
+            cursorDelta = -5
+        ),
+        LiveTemplate(
+            key = "query",
+            description = "JPad SQLite query",
+            templateText = "query(\"SELECT * FROM \");",
+            cursorDelta = -3
+        ),
+        LiveTemplate(
+            key = "tables",
+            description = "JPad database table list",
+            templateText = "dump(tables(), \"Database Tables\");",
+            cursorDelta = 0
         )
     )
 

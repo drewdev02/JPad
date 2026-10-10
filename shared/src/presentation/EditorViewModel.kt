@@ -84,6 +84,14 @@ private val DEFAULT_DUMP_SAMPLE = DumpValue.Table(
     )
 )
 
+private val DATABASE_CODE = """// Database scratchpad & queries
+var dbTables = tables();
+dump(dbTables, "Available Database Tables");
+
+var users = query("SELECT * FROM users");
+dump(users, "Active Users");
+"""
+
 private val DEFAULT_TABS = listOf(
     QueryTabSession(
         id = "1",
@@ -95,9 +103,7 @@ private val DEFAULT_TABS = listOf(
     QueryTabSession(
         id = "2",
         title = "DatabaseQuery.java",
-        code = """// Database scratchpad
-System.out.println("Connecting to database...");
-""",
+        code = DATABASE_CODE,
         dumpResults = emptyList(),
         isModified = false
     )
@@ -543,6 +549,31 @@ SELECT * FROM $tableName LIMIT 50;
             }
             state.copy(tabs = updated)
         }
+    }
+
+    fun clearCache(): Int {
+        val sizeBefore = org.andrew.jpad.runtime.JPad.cacheSize()
+        org.andrew.jpad.runtime.JPad.clearCache()
+        val currentSelectedId = _uiState.value.selectedTabId
+        _uiState.update { state ->
+            val updated = state.tabs.map { tab ->
+                if (tab.id == currentSelectedId) {
+                    tab.copy(statusMessage = "Cleared in-memory cache ($sizeBefore entries purged)")
+                } else tab
+            }
+            state.copy(tabs = updated)
+        }
+        return sizeBefore
+    }
+
+    fun insertSnippet(snippet: String) {
+        val active = _uiState.value.activeTab
+        val updatedCode = if (active.code.isBlank()) {
+            snippet
+        } else {
+            active.code.trimEnd() + "\n\n" + snippet
+        }
+        onCodeChanged(updatedCode)
     }
 
     fun saveCurrentTab(destinationPath: String? = null): Boolean {

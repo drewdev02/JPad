@@ -26,6 +26,24 @@ object DumpTableExporter {
         }
     }
 
+    fun toAsciiTable(columns: List<String>, rows: List<Map<String, DumpValue>>): String {
+        if (columns.isEmpty()) return ""
+        val colWidths = columns.associateWith { col ->
+            maxOf(col.length, rows.maxOfOrNull { extractCellString(it[col]).length } ?: 0)
+        }
+        val sb = StringBuilder()
+        val header = columns.joinToString(" | ") { col -> col.padEnd(colWidths[col] ?: col.length) }
+        val separator = columns.joinToString("-+-") { col -> "-".repeat(colWidths[col] ?: col.length) }
+        sb.append(header).append("\n").append(separator).append("\n")
+        for (row in rows) {
+            val line = columns.joinToString(" | ") { col ->
+                extractCellString(row[col]).padEnd(colWidths[col] ?: col.length)
+            }
+            sb.append(line).append("\n")
+        }
+        return sb.toString()
+    }
+
     fun toCsv(columns: List<String>, rows: List<Map<String, DumpValue>>): String {
         val sb = StringBuilder()
         sb.append(columns.joinToString(",") { escapeCsv(it) }).append("\n")

@@ -72,6 +72,18 @@ class DumpTableExporterTest {
     }
 
     @Test
+    fun `exports table rows to formatted ASCII table`() {
+        val ascii = DumpTableExporter.toAsciiTable(listOf("id", "name"), sampleRows)
+        val lines = ascii.lines().filter { it.isNotBlank() }
+
+        assertTrue(lines.size >= 4) // header, separator, 3 rows
+        assertTrue(lines[0].contains("id"))
+        assertTrue(lines[0].contains("name"))
+        assertTrue(lines[1].contains("-+-"))
+        assertTrue(lines[2].contains("Alice"))
+    }
+
+    @Test
     fun `filters rows case-insensitively and with multi-token search`() {
         // Empty query returns all
         assertEquals(3, DumpTableExporter.filterRows(sampleRows, "").size)
