@@ -483,5 +483,30 @@ class EditorViewModelTest {
         val state2 = viewModel.uiState.value
         assertFalse(state2.isSidebarVisible)
     }
+
+    @Test
+    fun `toggleCommandPalette, showCommandPalette and hideCommandPalette update state`() {
+        assertFalse(viewModel.uiState.value.isCommandPaletteVisible)
+
+        viewModel.toggleCommandPalette()
+        assertTrue(viewModel.uiState.value.isCommandPaletteVisible)
+
+        viewModel.hideCommandPalette()
+        assertFalse(viewModel.uiState.value.isCommandPaletteVisible)
+
+        viewModel.showCommandPalette()
+        assertTrue(viewModel.uiState.value.isCommandPaletteVisible)
+    }
+
+    @Test
+    fun `toggleShortcutsDialog and hideShortcutsDialog update state`() {
+        assertFalse(viewModel.uiState.value.isShortcutsDialogVisible)
+
+        viewModel.toggleShortcutsDialog()
+        assertTrue(viewModel.uiState.value.isShortcutsDialogVisible)
+
+        viewModel.hideShortcutsDialog()
+        assertFalse(viewModel.uiState.value.isShortcutsDialogVisible)
+    }
 }
 

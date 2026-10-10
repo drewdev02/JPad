@@ -42,6 +42,8 @@ fun JPadToolbar(
     isSidebarVisible: Boolean = true,
     onToggleSidebar: (() -> Unit)? = null,
     onToggleHistory: (() -> Unit)? = null,
+    onOpenCommandPalette: (() -> Unit)? = null,
+    onShowShortcuts: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val colors = JPadTheme.colors
@@ -140,6 +142,18 @@ fun JPadToolbar(
             )
         }
 
+        onOpenCommandPalette?.let { onPalette ->
+            JPadToolbarButton(
+                onClick = onPalette,
+                text = "Commands",
+                shortcut = "Cmd+K",
+                style = JPadButtonStyle.DEFAULT,
+                icon = {
+                    Text("⌘", style = JPadTheme.typography.uiSmall)
+                }
+            )
+        }
+
         // Separator
         Box(
             modifier = Modifier
@@ -165,7 +179,19 @@ fun JPadToolbar(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Right side info / action buttons (Samples, Help)
+        // Right side info / action buttons (Samples, Shortcuts)
+        onShowShortcuts?.let { onShortcuts ->
+            JPadToolbarButton(
+                onClick = onShortcuts,
+                text = "Shortcuts",
+                shortcut = "F1",
+                style = JPadButtonStyle.GHOST,
+                icon = {
+                    Text("⌨️", style = JPadTheme.typography.uiSmall)
+                }
+            )
+        }
+
         JPadToolbarButton(
             onClick = { /* Help */ },
             text = "Samples",

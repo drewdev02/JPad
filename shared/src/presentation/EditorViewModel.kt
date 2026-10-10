@@ -120,7 +120,9 @@ data class EditorUiState(
     val databaseSchemas: Map<String, List<DatabaseTableMeta>> = emptyMap(),
     val executionHistory: List<ExecutionSnapshot> = emptyList(),
     val selectedHistorySnapshotId: String? = null,
-    val diffSnapshot: ExecutionSnapshot? = null
+    val diffSnapshot: ExecutionSnapshot? = null,
+    val isCommandPaletteVisible: Boolean = false,
+    val isShortcutsDialogVisible: Boolean = false
 ) {
     val activeBackgroundTask: BackgroundTask?
         get() = backgroundTasks.firstOrNull()
@@ -784,6 +786,26 @@ System.out.println("Hello from $nameWithExt!");
                 state.copy(isSidebarVisible = true, activeSidebarTab = SidebarTab.HISTORY)
             }
         }
+    }
+
+    fun toggleCommandPalette() {
+        _uiState.update { it.copy(isCommandPaletteVisible = !it.isCommandPaletteVisible) }
+    }
+
+    fun showCommandPalette() {
+        _uiState.update { it.copy(isCommandPaletteVisible = true) }
+    }
+
+    fun hideCommandPalette() {
+        _uiState.update { it.copy(isCommandPaletteVisible = false) }
+    }
+
+    fun toggleShortcutsDialog() {
+        _uiState.update { it.copy(isShortcutsDialogVisible = !it.isShortcutsDialogVisible) }
+    }
+
+    fun hideShortcutsDialog() {
+        _uiState.update { it.copy(isShortcutsDialogVisible = false) }
     }
 }
 

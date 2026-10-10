@@ -57,6 +57,10 @@ import org.andrew.jpad.ui.components.sidebar.SidebarTab
 import org.andrew.jpad.history.ExecutionSnapshot
 import org.andrew.jpad.ui.components.history.JPadDiffViewerDialog
 import org.andrew.jpad.ui.components.history.JPadHistoryPanel
+import org.andrew.jpad.ui.components.palette.CommandCategory
+import org.andrew.jpad.ui.components.palette.CommandPaletteAction
+import org.andrew.jpad.ui.components.palette.JPadCommandPalette
+import org.andrew.jpad.ui.components.palette.JPadShortcutsDialog
 import org.andrew.jpad.ui.theme.JPadTheme
 import org.jetbrains.compose.reload.DevelopmentEntryPoint
 import org.koin.compose.koinInject
@@ -105,7 +109,11 @@ fun App(
         onOpenDiffViewer = viewModel::onOpenDiffViewer,
         onCloseDiffViewer = viewModel::onCloseDiffViewer,
         onDeleteHistorySnapshot = viewModel::onDeleteHistorySnapshot,
-        onClearHistory = viewModel::onClearHistory
+        onClearHistory = viewModel::onClearHistory,
+        onToggleCommandPalette = viewModel::toggleCommandPalette,
+        onCloseCommandPalette = viewModel::hideCommandPalette,
+        onToggleShortcuts = viewModel::toggleShortcutsDialog,
+        onCloseShortcuts = viewModel::hideShortcutsDialog
     )
 }
 
@@ -151,7 +159,11 @@ fun AppContent(
     onOpenDiffViewer: (ExecutionSnapshot) -> Unit = {},
     onCloseDiffViewer: () -> Unit = {},
     onDeleteHistorySnapshot: (String) -> Unit = {},
-    onClearHistory: () -> Unit = {}
+    onClearHistory: () -> Unit = {},
+    onToggleCommandPalette: () -> Unit = {},
+    onCloseCommandPalette: () -> Unit = {},
+    onToggleShortcuts: () -> Unit = {},
+    onCloseShortcuts: () -> Unit = {}
 ) {
     var activeResultTab by remember { mutableStateOf(ResultViewTab.CONSOLE_OUTPUT) }
 
@@ -228,6 +240,14 @@ fun AppContent(
                         onToggleHistory()
                         true
                     }
+                    isModifierDown && (event.key == Key.K || (event.isShiftPressed && event.key == Key.P)) -> {
+                        onToggleCommandPalette()
+                        true
+                    }
+                    event.key == Key.F1 -> {
+                        onToggleShortcuts()
+                        true
+                    }
                     else -> false
                 }
             }
@@ -246,7 +266,9 @@ fun AppContent(
                         onNewQueryClick = onNewTab,
                         isSidebarVisible = state.isSidebarVisible,
                         onToggleSidebar = onToggleSidebar,
-                        onToggleHistory = onToggleHistory
+                        onToggleHistory = onToggleHistory,
+                        onOpenCommandPalette = onToggleCommandPalette,
+                        onShowShortcuts = onToggleShortcuts
                     )
                 },
                 queryTabBar = {
@@ -438,6 +460,148 @@ fun AppContent(
                     currentCode = state.code,
                     onRestore = onRestoreHistorySnapshot,
                     onDismiss = onCloseDiffViewer
+                )
+            }
+
+            if (state.isCommandPaletteVisible) {
+                val commandActions = remember(
+                    state,
+                    onExecute,
+                    onStop,
+                    onNewTab,
+                    onSave,
+                    onSaveAs,
+                    onOpen,
+                    onToggleSidebar,
+                    onToggleHistory,
+                    onToggleShortcuts
+                ) {
+                    listOf(
+                        CommandPaletteAction(
+                            id = "exec_run",
+                            title = "Run Script / Query",
+                            subtitle = "Execute the active script with JPad engine",
+                            category = CommandCategory.EXECUTION,
+                            shortcut = "F5",
+                            icon = "▶️",
+                            onExecute = onExecute
+                        ),
+                        CommandPaletteAction(
+                            id = "exec_stop",
+                            title = "Stop Execution",
+                            subtitle = "Terminate the running JVM process",
+                            category = CommandCategory.EXECUTION,
+                            shortcut = "Shift+F5",
+                            icon = "⏹️",
+                            onExecute = onStop
+                        ),
+                        CommandPaletteAction(
+                            id = "file_new",
+                            title = "New Query Tab",
+                            subtitle = "Create a blank scratchpad tab",
+                            category = CommandCategory.FILE,
+                            shortcut = "Ctrl+N",
+                            icon = "➕",
+                            onExecute = onNewTab
+                        ),
+                        CommandPaletteAction(
+                            id = "file_save",
+                            title = "Save File",
+                            subtitle = "Save current file to disk",
+                            category = CommandCategory.FILE,
+                            shortcut = "Ctrl+S",
+                            icon = "💾",
+                            onExecute = onSave
+                        ),
+                        CommandPaletteAction(
+                            id = "file_save_as",
+                            title = "Save As...",
+                            subtitle = "Save current script to new file",
+                            category = CommandCategory.FILE,
+                            shortcut = "Ctrl+Shift+S",
+                            icon = "💾",
+                            onExecute = onSaveAs
+                        ),
+                        CommandPaletteAction(
+                            id = "file_open",
+                            title = "Open File...",
+                            subtitle = "Open a Java/SQL file from system",
+                            category = CommandCategory.FILE,
+                            shortcut = "Ctrl+O",
+                            icon = "📂",
+                            onExecute = onOpen
+                        ),
+                        CommandPaletteAction(
+                            id = "view_toggle_sidebar",
+                            title = "Toggle Sidebar",
+                            subtitle = "Show or hide the explorer side panel",
+                            category = CommandCategory.VIEW,
+                            shortcut = "Ctrl+B",
+                            icon = "📁",
+                            onExecute = onToggleSidebar
+                        ),
+                        CommandPaletteAction(
+                            id = "view_toggle_history",
+                            title = "Toggle Execution History",
+                            subtitle = "Show or hide history timeline",
+                            category = CommandCategory.HISTORY,
+                            shortcut = "Ctrl+H",
+                            icon = "🕒",
+                            onExecute = onToggleHistory
+                        ),
+                        CommandPaletteAction(
+                            id = "lang_java_statements",
+                            title = "Switch Language to Java (Statements)",
+                            subtitle = "Evaluate statements and methods",
+                            category = CommandCategory.LANGUAGE,
+                            icon = "☕",
+                            onExecute = { onLanguageModeChanged(ScriptLanguageMode.JAVA_STATEMENTS) }
+                        ),
+                        CommandPaletteAction(
+                            id = "lang_java_expr",
+                            title = "Switch Language to Java (Expression)",
+                            subtitle = "Evaluate single expression immediately",
+                            category = CommandCategory.LANGUAGE,
+                            icon = "☕",
+                            onExecute = { onLanguageModeChanged(ScriptLanguageMode.JAVA_EXPRESSION) }
+                        ),
+                        CommandPaletteAction(
+                            id = "lang_java_class",
+                            title = "Switch Language to Java (Class/Program)",
+                            subtitle = "Full public class with main method",
+                            category = CommandCategory.LANGUAGE,
+                            icon = "☕",
+                            onExecute = { onLanguageModeChanged(ScriptLanguageMode.JAVA_PROGRAM) }
+                        ),
+                        CommandPaletteAction(
+                            id = "lang_sql",
+                            title = "Switch Language to SQL",
+                            subtitle = "Execute SQL statements on active database",
+                            category = CommandCategory.LANGUAGE,
+                            icon = "🗄️",
+                            onExecute = { onLanguageModeChanged(ScriptLanguageMode.SQL) }
+                        ),
+                        CommandPaletteAction(
+                            id = "help_shortcuts",
+                            title = "Keyboard Shortcuts",
+                            subtitle = "Display full list of keyboard shortcuts",
+                            category = CommandCategory.VIEW,
+                            shortcut = "F1",
+                            icon = "⌨️",
+                            onExecute = onToggleShortcuts
+                        )
+                    )
+                }
+
+                JPadCommandPalette(
+                    actions = commandActions,
+                    onDismiss = onCloseCommandPalette
+                )
+            }
+
+            if (state.isShortcutsDialogVisible) {
+                JPadShortcutsDialog(
+                    onDismiss = onCloseShortcuts
                 )
             }
         }
