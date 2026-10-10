@@ -40,6 +40,10 @@ import org.andrew.jpad.core.completion.LookupItem
 import org.andrew.jpad.ui.components.editor.completion.JPadLookupPopup
 import org.andrew.jpad.ui.theme.JPadTheme
 
+import org.andrew.jpad.core.completion.SqlCompletionService
+import org.andrew.jpad.core.database.DatabaseTableMeta
+import org.andrew.jpad.ui.components.ScriptLanguageMode
+
 fun calculateCursorPosition(text: String, selectionOffset: Int): Pair<Int, Int> {
     val safeOffset = selectionOffset.coerceIn(0, text.length)
     val textBeforeCursor = text.substring(0, safeOffset)
@@ -68,6 +72,9 @@ fun JPadCodeEditor(
     onCursorPositionChange: ((line: Int, col: Int) -> Unit)? = null,
     targetCursorPosition: Pair<Int, Int>? = null,
     completionService: CompletionService? = null,
+    sqlCompletionService: SqlCompletionService? = null,
+    languageMode: ScriptLanguageMode = ScriptLanguageMode.JAVA_STATEMENTS,
+    activeDatabaseSchema: List<DatabaseTableMeta> = emptyList(),
     modifier: Modifier = Modifier,
     readOnly: Boolean = false
 ) {
@@ -105,6 +112,9 @@ fun JPadCodeEditor(
             }
         },
         completionService = completionService,
+        sqlCompletionService = sqlCompletionService,
+        languageMode = languageMode,
+        activeDatabaseSchema = activeDatabaseSchema,
         onExternalValueCommit = onValueChange,
         onCursorMove = onCursorPositionChange,
         modifier = modifier,
@@ -117,6 +127,9 @@ fun JPadCodeEditor(
     textFieldValue: TextFieldValue,
     onTextFieldValueChange: (TextFieldValue) -> Unit,
     completionService: CompletionService? = null,
+    sqlCompletionService: SqlCompletionService? = null,
+    languageMode: ScriptLanguageMode = ScriptLanguageMode.JAVA_STATEMENTS,
+    activeDatabaseSchema: List<DatabaseTableMeta> = emptyList(),
     onExternalValueCommit: ((String) -> Unit)? = null,
     onCursorMove: ((line: Int, col: Int) -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -133,7 +146,13 @@ fun JPadCodeEditor(
 
     val verticalScrollState = rememberScrollState()
     val horizontalScrollState = rememberScrollState()
-    val visualTransformation = remember(colors) { JavaVisualTransformation(colors) }
+    val visualTransformation = remember(colors, languageMode) {
+        if (languageMode == ScriptLanguageMode.SQL) {
+            SqlVisualTransformation(colors)
+        } else {
+            JavaVisualTransformation(colors)
+        }
+    }
 
     var completionResult by remember { mutableStateOf<CompletionResult?>(null) }
     var selectedCompletionIndex by remember { mutableStateOf(0) }
@@ -196,19 +215,31 @@ fun JPadCodeEditor(
                     .padding(horizontal = 8.dp, vertical = 8.dp)
                     .horizontalScroll(horizontalScrollState)
             ) {
+                fun requestCompletions(text: String, cursor: Int): CompletionResult? {
+                    if (readOnly) return null
+                    return if (languageMode == ScriptLanguageMode.SQL) {
+                        sqlCompletionService?.getCompletionsForSchema(text, cursor, activeDatabaseSchema)
+                            ?: completionService?.getCompletions(text, cursor)
+                    } else {
+                        completionService?.getCompletions(text, cursor)
+                    }
+                }
+
+                val hasCompletion = (languageMode == ScriptLanguageMode.SQL && (sqlCompletionService != null || completionService != null)) || completionService != null
+
                 BasicTextField(
                     value = textFieldValue,
                     onValueChange = { newValue ->
                         onTextFieldValueChange(newValue)
 
                         // Auto-completion trigger check on typing
-                        if (completionService != null && !readOnly) {
+                        if (hasCompletion && !readOnly) {
                             val cursor = newValue.selection.start
                             if (cursor > 0 && cursor <= newValue.text.length) {
                                 val lastChar = newValue.text[cursor - 1]
-                                if (lastChar.isLetterOrDigit() || lastChar == '.' || lastChar == '@') {
-                                    val res = completionService.getCompletions(newValue.text, cursor)
-                                    if (res.items.isNotEmpty()) {
+                                if (lastChar.isLetterOrDigit() || lastChar == '.' || lastChar == '@' || lastChar == '_') {
+                                    val res = requestCompletions(newValue.text, cursor)
+                                    if (res != null && res.items.isNotEmpty()) {
                                         completionResult = res
                                         selectedCompletionIndex = 0
                                     } else {
@@ -234,10 +265,10 @@ fun JPadCodeEditor(
 
                             // Manual completion trigger on Ctrl+Space
                             if (isCtrlOrMeta && event.key == Key.Spacebar) {
-                                if (completionService != null && !readOnly) {
+                                if (hasCompletion && !readOnly) {
                                     val cursor = textFieldValue.selection.start
-                                    val res = completionService.getCompletions(textFieldValue.text, cursor)
-                                    if (res.items.isNotEmpty()) {
+                                    val res = requestCompletions(textFieldValue.text, cursor)
+                                    if (res != null && res.items.isNotEmpty()) {
                                         completionResult = res
                                         selectedCompletionIndex = 0
                                         return@onPreviewKeyEvent true

@@ -8,7 +8,10 @@ enum class LookupElementKind {
     KEYWORD,
     VARIABLE,
     SNIPPET,
-    DIRECTIVE
+    DIRECTIVE,
+    TABLE,
+    COLUMN,
+    SQL_FUNCTION
 }
 
 data class LookupItem(

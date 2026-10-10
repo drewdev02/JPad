@@ -5,6 +5,7 @@ import org.andrew.jpad.core.compiler.InMemoryJavaCompiler
 import org.andrew.jpad.core.compiler.JavaCompilerService
 import org.andrew.jpad.core.completion.CompletionService
 import org.andrew.jpad.core.completion.JShellCompletionService
+import org.andrew.jpad.core.completion.SqlCompletionService
 import org.andrew.jpad.core.dependencies.DependencyResolver
 import org.andrew.jpad.core.dependencies.MavenDependencyResolver
 import org.andrew.jpad.core.dump.ObjectDumper
@@ -26,6 +27,7 @@ val coreEngineModule = module {
     singleOf(::SnippetWrapper)
     single<DependencyResolver> { MavenDependencyResolver() }
     single<CompletionService> { JShellCompletionService() }
+    single { SqlCompletionService() }
     // In-process runners: only the worker JVM (and tests of the runners themselves) use these.
     singleOf(::LocalInMemoryRunner)
     singleOf(::JShellRunner)

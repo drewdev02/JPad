@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import org.andrew.jpad.presentation.EditorUiState
 import org.andrew.jpad.presentation.EditorViewModel
 import org.andrew.jpad.core.completion.CompletionService
+import org.andrew.jpad.core.completion.SqlCompletionService
 import org.andrew.jpad.ui.components.EngineState
 import org.andrew.jpad.ui.components.JPadQueryTabBar
 import org.andrew.jpad.ui.components.JPadStatusBar
@@ -70,13 +71,15 @@ import org.koin.compose.viewmodel.koinViewModel
 @DevelopmentEntryPoint
 fun App(
     viewModel: EditorViewModel = koinViewModel(),
-    completionService: CompletionService = koinInject()
+    completionService: CompletionService = koinInject(),
+    sqlCompletionService: SqlCompletionService = koinInject()
 ) {
     val state by viewModel.uiState.collectAsState()
 
     AppContent(
         state = state,
         completionService = completionService,
+        sqlCompletionService = sqlCompletionService,
         onCodeChanged = viewModel::onCodeChanged,
         onCursorPositionChanged = viewModel::onCursorPositionChanged,
         onLanguageModeChanged = viewModel::onLanguageModeChanged,
@@ -127,6 +130,7 @@ enum class ResultViewTab {
 fun AppContent(
     state: EditorUiState,
     completionService: CompletionService? = null,
+    sqlCompletionService: SqlCompletionService? = null,
     onCodeChanged: (String) -> Unit,
     onCursorPositionChanged: (Int, Int) -> Unit = { _, _ -> },
     onLanguageModeChanged: (ScriptLanguageMode) -> Unit,
@@ -337,6 +341,9 @@ fun AppContent(
                             onCursorPositionChange = onCursorPositionChanged,
                             targetCursorPosition = state.targetCursorPosition,
                             completionService = completionService,
+                            sqlCompletionService = sqlCompletionService,
+                            languageMode = state.languageMode,
+                            activeDatabaseSchema = state.databaseSchemas[state.selectedConnectionId] ?: emptyList(),
                             modifier = Modifier.fillMaxSize()
                         )
                     }

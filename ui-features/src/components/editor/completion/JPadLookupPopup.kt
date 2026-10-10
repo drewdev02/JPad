@@ -153,6 +153,9 @@ private fun KindBadge(kind: LookupElementKind) {
         LookupElementKind.VARIABLE -> "v" to Color(0xFFE06C75) // Red/Salmon
         LookupElementKind.SNIPPET -> "s" to Color(0xFFD19A66)  // Gold
         LookupElementKind.DIRECTIVE -> "d" to Color(0xFFC678DD)// Magenta
+        LookupElementKind.TABLE -> "t" to Color(0xFFE5C07B)    // Amber / Table
+        LookupElementKind.COLUMN -> "c" to Color(0xFF61AFEF)   // Blue / Column
+        LookupElementKind.SQL_FUNCTION -> "f" to Color(0xFFC678DD) // Purple / Function
     }
 
     Box(
